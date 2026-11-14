@@ -1,0 +1,92 @@
+<a
+  href="#main"
+  class="sr-only z-50 rounded-lg bg-raised px-3 py-2 text-ink focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+  >Skip to content</a
+>
+
+<div class="min-h-dvh lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)]">
+  <aside
+    class="vt-rail sticky top-0 hidden h-dvh flex-col border-r border-line/60 bg-bg/40 px-4 py-6 backdrop-blur-sm lg:flex"
+  >
+    <a
+      routerLink="/"
+      queryParamsHandling="preserve"
+      class="mb-9 flex items-center gap-3 rounded-lg px-2 py-1"
+      aria-label="Pulse, overview"
+    >
+      <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="9" fill="var(--color-panel)" stroke="var(--color-line)" />
+        <path
+          d="M4 17h6l3-8 5 15 3-7h7"
+          fill="none"
+          stroke="var(--color-sodium)"
+          stroke-width="2.4"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          pathLength="1"
+          stroke-dasharray="1"
+          stroke-dashoffset="1"
+          style="
+            filter: drop-shadow(0 0 4px rgb(255 166 61 / 0.6));
+            animation: draw 1.4s var(--ease-out) 0.2s forwards;
+          "
+        />
+      </svg>
+      <span class="display text-[23px] font-semibold">pulse</span>
+    </a>
+
+    <nav aria-label="Main" class="flex flex-col gap-1">
+      @for (item of nav; track item.path) {
+        <a
+          [routerLink]="item.path"
+          queryParamsHandling="preserve"
+          routerLinkActive="is-active"
+          ariaCurrentWhenActive="page"
+          [routerLinkActiveOptions]="{ exact: true }"
+          class="nav-link group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-medium text-sub transition-colors hover:bg-white/[0.04] hover:text-ink"
+        >
+          <pl-icon [name]="item.icon" [size]="19" />
+          {{ item.label }}
+          @if (item.path === '/live' && live.active() !== null) {
+            <span class="num ml-auto flex items-center gap-1.5 text-xs text-mint"
+              ><i class="size-1.5 rounded-full bg-mint"></i>{{ live.active() }}</span
+            >
+          }
+        </a>
+      }
+    </nav>
+
+    <p class="mt-auto px-2 text-xs leading-relaxed text-faint">
+      Cookieless. No IP addresses stored.<br />Your sites, your Pi.
+    </p>
+  </aside>
+
+  <main id="main" class="min-w-0 px-4 pb-28 pt-6 sm:px-6 lg:px-10 lg:pb-16 lg:pt-10">
+    <div class="mx-auto max-w-[1360px]">
+      <router-outlet />
+    </div>
+  </main>
+</div>
+
+<nav
+  aria-label="Main"
+  class="vt-bar fixed inset-x-0 bottom-0 z-40 border-t border-line/70 bg-bg/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden"
+>
+  <ul class="mx-auto grid max-w-md grid-cols-4">
+    @for (item of nav; track item.path) {
+      <li>
+        <a
+          [routerLink]="item.path"
+          queryParamsHandling="preserve"
+          routerLinkActive="is-active"
+          ariaCurrentWhenActive="page"
+          [routerLinkActiveOptions]="{ exact: true }"
+          class="nav-link flex flex-col items-center gap-1 py-2.5 text-[11.5px] font-medium text-faint transition-colors"
+        >
+          <pl-icon [name]="item.icon" [size]="21" />
+          {{ item.label }}
+        </a>
+      </li>
+    }
+  </ul>
+</nav>
