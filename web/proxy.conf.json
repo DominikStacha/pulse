@@ -1,0 +1,4 @@
+{
+  "/api": { "target": "http://localhost:5190", "secure": false },
+  "/script.js": { "target": "http://localhost:5190", "secure": false }
+}
