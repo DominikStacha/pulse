@@ -32,14 +32,12 @@ export interface Tab extends Option<Dim> {}
               <span class="w-10 text-right">Share</span>
             }
           </div>
-          @for (key of [dim()]; track key) {
-            <pl-bar-list
-              [rows]="data.rows"
-              [metric]="metric()"
-              [icon]="icon()"
-              [showShare]="metric() === 'visitors'"
-            />
-          }
+          <pl-bar-list
+            [rows]="data.rows"
+            [metric]="metric()"
+            [icon]="icon()"
+            [showShare]="metric() === 'visitors'"
+          />
         } @else {
           <pl-state title="Nothing here yet" [message]="emptyHint()" />
         }

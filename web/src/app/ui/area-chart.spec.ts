@@ -42,8 +42,8 @@ describe('AreaChart', () => {
 
   it('draws both series and the ghost lines', async () => {
     const el = (await render(points)).nativeElement as HTMLElement;
-    // 2 areas + 2 lines + 2 ghosts
-    expect(el.querySelectorAll('svg g path')).toHaveLength(6);
+    // 2 areas + 2 lines + 2 dashed tails for the unfinished newest bucket + 2 ghosts
+    expect(el.querySelectorAll('svg g path')).toHaveLength(8);
     expect(el.textContent).toContain('8 Nov');
     expect(el.textContent).toContain('10 Nov');
   });
@@ -65,7 +65,7 @@ describe('AreaChart', () => {
     };
 
     await press('ArrowLeft'); // starts at the newest bucket
-    expect(el.textContent).toContain('Tue 10 Nov');
+    expect(el.textContent).toContain('Tue 10 Nov (so far)');
     await press('ArrowLeft');
     expect(el.textContent).toContain('Mon 9 Nov');
     expect(el.textContent).toContain('Before: Mon 2 Nov');

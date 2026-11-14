@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  afterRenderEffect,
+  computed,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
 import { Bucket, Point } from '../core/api';
 import { formatCompact, formatNumber } from '../core/format';
 import { axisLabel, tooltipLabel } from '../core/period';
@@ -75,72 +84,88 @@ const PHONE = 520;
           </text>
         }
 
-        @for (key of [replayKey()]; track key) {
-          <g>
-            @if (showPrevious()) {
-              @if (showPageviews()) {
-                <path
-                  [attr.d]="curves().prevPageviews"
-                  fill="none"
-                  stroke="var(--color-peri)"
-                  stroke-opacity="0.4"
-                  stroke-width="1.25"
-                  stroke-dasharray="3 5"
-                  style="animation: fade-in 1s 0.6s backwards"
-                />
-              }
-              @if (showVisitors()) {
-                <path
-                  [attr.d]="curves().prevVisitors"
-                  fill="none"
-                  stroke="var(--color-sodium)"
-                  stroke-opacity="0.45"
-                  stroke-width="1.25"
-                  stroke-dasharray="3 5"
-                  style="animation: fade-in 1s 0.6s backwards"
-                />
-              }
-            }
+        <g>
+          @if (showPrevious()) {
             @if (showPageviews()) {
               <path
-                [attr.d]="curves().pageviewsArea"
-                fill="url(#fill-pageviews)"
-                style="animation: fade-in 1s 0.5s backwards"
-              />
-              <path
-                [attr.d]="curves().pageviews"
+                [attr.d]="curves().prevPageviews"
                 fill="none"
                 stroke="var(--color-peri)"
-                stroke-width="1.75"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                pathLength="1"
-                stroke-dasharray="1"
-                stroke-dashoffset="1"
-                style="animation: draw 1.3s var(--ease-out) 0.1s forwards"
+                stroke-opacity="0.4"
+                stroke-width="1.25"
+                stroke-dasharray="3 5"
+                style="animation: fade-in 1s 0.6s backwards"
               />
             }
             @if (showVisitors()) {
               <path
-                [attr.d]="curves().visitorsArea"
-                fill="url(#fill-visitors)"
-                style="animation: fade-in 1s 0.5s backwards"
-              />
-              <path
-                [attr.d]="curves().visitors"
+                [attr.d]="curves().prevVisitors"
                 fill="none"
                 stroke="var(--color-sodium)"
-                stroke-width="2.25"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                pathLength="1"
-                stroke-dasharray="1"
-                stroke-dashoffset="1"
-                style="filter: drop-shadow(0 0 7px rgb(255 166 61 / 0.55)); animation: draw 1.3s var(--ease-out) forwards"
+                stroke-opacity="0.45"
+                stroke-width="1.25"
+                stroke-dasharray="3 5"
+                style="animation: fade-in 1s 0.6s backwards"
               />
             }
-          </g>
-        }
+          }
+          @if (showPageviews()) {
+            <path
+              [attr.d]="curves().pageviewsArea"
+              fill="url(#fill-pageviews)"
+              style="animation: fade-in 1s 0.5s backwards"
+            />
+            <path
+              [attr.d]="curves().pageviews"
+              fill="none"
+              stroke="var(--color-peri)"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              pathLength="1"
+              stroke-dasharray="1"
+              stroke-dashoffset="1"
+              style="animation: draw 1.3s var(--ease-out) 0.1s forwards"
+            />
+            <path
+              [attr.d]="curves().pageviewsTail"
+              fill="none"
+              stroke="var(--color-peri)"
+              stroke-width="1.75"
+              stroke-linecap="round"
+              stroke-dasharray="2 5"
+              style="animation: fade-in 0.8s 1.1s backwards"
+            />
+          }
+          @if (showVisitors()) {
+            <path
+              [attr.d]="curves().visitorsArea"
+              fill="url(#fill-visitors)"
+              style="animation: fade-in 1s 0.5s backwards"
+            />
+            <path
+              [attr.d]="curves().visitors"
+              fill="none"
+              stroke="var(--color-sodium)"
+              stroke-width="2.25"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              pathLength="1"
+              stroke-dasharray="1"
+              stroke-dashoffset="1"
+              style="filter: drop-shadow(0 0 7px rgb(255 166 61 / 0.55)); animation: draw 1.3s var(--ease-out) forwards"
+            />
+            <path
+              [attr.d]="curves().visitorsTail"
+              fill="none"
+              stroke="var(--color-sodium)"
+              stroke-width="2.25"
+              stroke-linecap="round"
+              stroke-dasharray="2 5"
+              style="animation: fade-in 0.8s 1.1s backwards"
+            />
+          }
+        </g>
 
         @if (cursor(); as c) {
           <line
@@ -239,8 +264,21 @@ export class AreaChart {
   /** Changes when the data is for a new site/period, so the lines draw in again. */
   readonly replayKey = input('');
 
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   protected readonly width = hostWidth();
   protected readonly hover = signal<number | null>(null);
+
+  constructor() {
+    // New data for a new site or period: run the draw-in again on the elements that are already there.
+    afterRenderEffect(() => {
+      this.replayKey();
+      if (typeof this.host.getAnimations !== 'function') return;
+      for (const animation of this.host.getAnimations({ subtree: true })) {
+        animation.currentTime = 0;
+        animation.play();
+      }
+    });
+  }
   protected readonly compact = formatCompact;
   protected readonly n = formatNumber;
 
@@ -288,20 +326,38 @@ export class AreaChart {
     const xs = this.xs();
     const y = this.y();
     const base = this.plot().b;
+    /**
+     * The newest bucket is still filling up, so it is drawn dashed instead of as a
+     * plunge to "nothing happened": solid curve up to the last full bucket, then a
+     * dashed tail to the partial one. The fill follows the same outline.
+     */
     const build = (
       list: readonly Point[],
       pick: (p: Point) => number,
-    ): { d: string; area: string } => {
+      partialTail = false,
+    ): { d: string; area: string; tail: string } => {
       const pts: Pt[] = list.slice(0, xs.length).map((p, i) => ({ x: xs[i], y: y(pick(p)) }));
-      const d = monotonePath(pts);
-      return { d, area: areaPath(d, pts, base) };
+      if (!partialTail || pts.length < 3) {
+        const d = monotonePath(pts);
+        return { d, area: areaPath(d, pts, base), tail: '' };
+      }
+      const full = pts.slice(0, -1);
+      const [a, b] = [pts[pts.length - 2], pts[pts.length - 1]];
+      const d = monotonePath(full);
+      return {
+        d,
+        area: areaPath(`${d}L${b.x},${b.y}`, pts, base),
+        tail: `M${a.x},${a.y}L${b.x},${b.y}`,
+      };
     };
-    const visitors = build(this.points(), (p) => p.visitors);
-    const pageviews = build(this.points(), (p) => p.pageviews);
+    const visitors = build(this.points(), (p) => p.visitors, true);
+    const pageviews = build(this.points(), (p) => p.pageviews, true);
     return {
       visitors: visitors.d,
+      visitorsTail: visitors.tail,
       visitorsArea: visitors.area,
       pageviews: pageviews.d,
+      pageviewsTail: pageviews.tail,
       pageviewsArea: pageviews.area,
       prevVisitors: build(this.previous(), (p) => p.visitors).d,
       prevPageviews: build(this.previous(), (p) => p.pageviews).d,
@@ -333,7 +389,8 @@ export class AreaChart {
       x,
       yVisitors: y(point.visitors),
       yPageviews: y(point.pageviews),
-      title: tooltipLabel(point.t, this.bucket()),
+      title:
+        tooltipLabel(point.t, this.bucket()) + (i === this.points().length - 1 ? ' (so far)' : ''),
       visitors: point.visitors,
       pageviews: point.pageviews,
       before: before
