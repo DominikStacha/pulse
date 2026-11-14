@@ -1,0 +1,264 @@
+<pl-page-header
+  title="Pi status"
+  [subtitle]="
+    host()
+      ? host()!.hostname + ' · ' + (host()!.os ?? 'Linux')
+      : 'Raspberry Pi health, collected every few seconds'
+  "
+  [site]="false"
+  [period]="false"
+  [live]="false"
+>
+  <button
+    type="button"
+    class="chip gap-2 self-start py-[7px] text-[13px] sm:self-auto"
+    (click)="status.refresh()"
+    [disabled]="status.loading()"
+  >
+    <pl-icon name="refresh" [size]="15" [class.animate-spin]="status.loading()" />
+    Refresh
+  </button>
+</pl-page-header>
+
+@if (status.error(); as error) {
+  <div
+    class="rise mb-4 flex gap-3 rounded-2xl border border-down/30 bg-down/[0.07] p-4 text-sm text-down"
+    role="alert"
+    style="--i: 0"
+  >
+    <pl-icon name="alert" [size]="18" class="mt-0.5" />
+    <p>{{ error }}</p>
+  </div>
+}
+@if (stale()) {
+  <div
+    class="rise mb-4 flex gap-3 rounded-2xl border border-warn/30 bg-warn/[0.07] p-4 text-sm text-warn"
+    role="alert"
+    style="--i: 0"
+  >
+    <pl-icon name="alert" [size]="18" class="mt-0.5" />
+    <div>
+      <p>
+        This snapshot is older than a minute, so the collector on the Pi has probably stopped.
+        Everything below is the last thing it reported, not the Pi's current state.
+      </p>
+      <p class="mt-1.5 font-mono text-xs opacity-80">
+        ssh raspberry.local · systemctl status pi-status.timer
+      </p>
+    </div>
+  </div>
+}
+@if (status.schemaMismatch()) {
+  <div
+    class="rise mb-4 flex gap-3 rounded-2xl border border-warn/30 bg-warn/[0.07] p-4 text-sm text-warn"
+    role="alert"
+    style="--i: 0"
+  >
+    <pl-icon name="alert" [size]="18" class="mt-0.5" />
+    <p>
+      The Pi runs a different collector version than this page expects. Re-run the collector install
+      script on the Pi.
+    </p>
+  </div>
+}
+
+@if (!status.hasLoaded()) {
+  <div
+    class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+    aria-busy="true"
+    aria-label="Loading status"
+  >
+    @for (n of skeletons; track n) {
+      <div class="panel p-5">
+        <div class="skeleton h-3.5 w-20"></div>
+        <div class="mt-4 flex items-center gap-4">
+          <div class="skeleton size-24 !rounded-full"></div>
+          <div class="skeleton h-4 w-28"></div>
+        </div>
+        <div class="skeleton mt-5 h-11 w-full"></div>
+      </div>
+    }
+  </div>
+} @else if (snapshot(); as snap) {
+  <!-- Verdict -->
+  <section
+    class="panel rise mb-4 flex flex-wrap items-center gap-x-6 gap-y-4 p-5 sm:p-6"
+    style="--i: 0"
+    [attr.data-sev]="overall()"
+    aria-label="Overall status"
+  >
+    <span
+      class="relative grid size-[68px] shrink-0 place-items-center rounded-full"
+      style="
+        color: var(--sev);
+        background: color-mix(in oklab, var(--sev) 12%, transparent);
+        box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--sev) 40%, transparent);
+      "
+    >
+      @if (overall() === 'ok' || overall() === 'idle') {
+        <span
+          class="absolute inset-0 rounded-full"
+          style="background: var(--sev); animation: ring 2.8s ease-out infinite; opacity: 0.4"
+        ></span>
+      }
+      <pl-icon
+        [name]="overall() === 'down' || overall() === 'warn' ? 'alert' : 'check'"
+        [size]="30"
+      />
+    </span>
+    <div class="min-w-0 flex-1 basis-60">
+      <p
+        class="display text-[28px] sm:text-[34px]"
+        [style.color]="overall() === 'ok' || overall() === 'idle' ? null : 'var(--sev)'"
+      >
+        {{ overallLabel() }}
+      </p>
+      <p class="mt-2 text-sm text-sub" aria-live="polite">
+        @if (dataAge(); as age) {
+          Collected {{ age }}, refreshes automatically.
+        }
+        @if (snap.host?.kernel) {
+          <span class="text-faint"> Kernel {{ snap.host!.kernel }}.</span>
+        }
+      </p>
+    </div>
+    <dl class="flex gap-6 text-sm">
+      <div>
+        <dt class="text-xs text-faint">Healthy</dt>
+        <dd class="display num mt-1 text-[26px]" style="color: var(--color-mint)">
+          {{ counts().ok }}
+        </dd>
+      </div>
+      <div>
+        <dt class="text-xs text-faint">Warning</dt>
+        <dd
+          class="display num mt-1 text-[26px]"
+          [style.color]="counts().warn ? 'var(--color-warn)' : 'var(--color-faint)'"
+        >
+          {{ counts().warn }}
+        </dd>
+      </div>
+      <div>
+        <dt class="text-xs text-faint">Down</dt>
+        <dd
+          class="display num mt-1 text-[26px]"
+          [style.color]="counts().down ? 'var(--color-down)' : 'var(--color-faint)'"
+        >
+          {{ counts().down }}
+        </dd>
+      </div>
+      <div>
+        <dt class="text-xs text-faint">Stopped</dt>
+        <dd class="display num mt-1 text-[26px] text-sub">{{ counts().idle }}</dd>
+      </div>
+    </dl>
+  </section>
+
+  <!-- Host vitals -->
+  @if (vitals().length) {
+    <section aria-labelledby="host-title" class="mb-8">
+      <h2 id="host-title" class="mb-3 px-1 text-[15px] font-medium text-ink">Host</h2>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        @for (v of gauges(); track v.key; let i = $index) {
+          <pl-vital-tile
+            class="rise"
+            [style.--i]="i + 1"
+            [reading]="v"
+            [format]="formatterFor(v.key)"
+          />
+        }
+      </div>
+      @if (facts().length) {
+        <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          @for (v of facts(); track v.key; let i = $index) {
+            <pl-vital-tile class="rise" [style.--i]="gauges().length + i + 1" [reading]="v" />
+          }
+        </div>
+      }
+    </section>
+  } @else {
+    <p class="mb-8 rounded-2xl border border-line p-4 text-sm text-sub">
+      The collector could not read host vitals this time.
+    </p>
+  }
+
+  <!-- Containers -->
+  <section aria-labelledby="svc-title">
+    <div class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-1">
+      <h2 id="svc-title" class="text-[15px] font-medium text-ink">Containers</h2>
+      <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+        <label class="relative block sm:w-52">
+          <span class="sr-only">Filter containers</span>
+          <pl-icon
+            name="search"
+            [size]="15"
+            class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint"
+          />
+          <input
+            type="search"
+            placeholder="Filter by name"
+            class="w-full rounded-xl border border-line bg-black/25 py-[7px] pl-9 pr-3 text-[13px] text-ink placeholder:text-faint"
+            [value]="search()"
+            (input)="onSearch($event)"
+          />
+        </label>
+        <pl-segmented
+          class="sm:w-[19rem]"
+          [options]="viewOptions()"
+          [(value)]="view"
+          label="Which containers to show"
+        />
+      </div>
+    </div>
+
+    @if (visible().length) {
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        @for (s of visible(); track s.container.id; let i = $index) {
+          <pl-service-card
+            class="rise"
+            [style.--i]="i < 12 ? i : 0"
+            [container]="s.container"
+            [severity]="s.severity"
+            [now]="now()"
+          />
+        }
+      </div>
+    } @else {
+      <div class="panel">
+        <pl-state
+          [title]="
+            search()
+              ? 'No container matches'
+              : view() === 'stopped'
+                ? 'Nothing is stopped'
+                : 'No containers reported'
+          "
+          [message]="search() ? 'Try a shorter name or switch to All.' : ''"
+        />
+      </div>
+    }
+  </section>
+
+  @if (collectorErrors().length) {
+    <section class="mt-8" aria-labelledby="warn-title">
+      <h2 id="warn-title" class="mb-3 px-1 text-[15px] font-medium text-ink">Collector warnings</h2>
+      <ul
+        class="space-y-1 rounded-2xl border border-line bg-black/20 p-4 font-mono text-xs text-sub"
+      >
+        @for (e of collectorErrors(); track e) {
+          <li>{{ e }}</li>
+        }
+      </ul>
+    </section>
+  }
+} @else if (status.error()) {
+  <div class="panel">
+    <pl-state
+      kind="error"
+      title="No status to show"
+      message="Pulse could not read the Pi's status file."
+      [retryable]="true"
+      (retry)="status.refresh()"
+    />
+  </div>
+}
