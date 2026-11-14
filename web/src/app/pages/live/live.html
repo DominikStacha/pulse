@@ -1,0 +1,157 @@
+<pl-page-header
+  title="Live"
+  subtitle="Visitors on your sites right now, as they arrive."
+  [period]="false"
+  [live]="false"
+>
+  <span
+    class="chip cursor-default gap-2 self-start py-[7px] text-[13px] sm:self-auto"
+    role="status"
+  >
+    <span
+      class="size-2 rounded-full"
+      [class]="live.connected() ? 'bg-mint' : 'bg-warn'"
+      [style.animation]="live.connected() ? 'breathe 2.4s ease-in-out infinite' : null"
+    ></span>
+    {{ live.connected() ? 'Streaming' : 'Reconnecting…' }}
+  </span>
+</pl-page-header>
+
+<div class="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+  <section
+    class="panel rise relative flex flex-col overflow-hidden p-5 sm:p-6"
+    style="--i: 0"
+    aria-labelledby="online-label"
+  >
+    <div
+      class="pointer-events-none absolute -left-16 -top-20 size-64 rounded-full bg-sodium/15 blur-3xl"
+      aria-hidden="true"
+    ></div>
+    <div
+      class="ecg pointer-events-none absolute right-0 top-[5.6rem] h-16 w-[58%] overflow-hidden sm:top-[6.4rem]"
+      aria-hidden="true"
+    >
+      <svg viewBox="0 0 480 60" preserveAspectRatio="none" class="h-full w-[200%]">
+        <path
+          d="M0,30H30l6-4 6 4h10l4 4 6-30 6 46 6-16h16l8-8 8 8h14M120,30H150l6-4 6 4h10l4 4 6-30 6 46 6-16h16l8-8 8 8h14M240,30H270l6-4 6 4h10l4 4 6-30 6 46 6-16h16l8-8 8 8h14M360,30H390l6-4 6 4h10l4 4 6-30 6 46 6-16h16l8-8 8 8h14"
+          fill="none"
+          stroke="var(--color-sodium)"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          vector-effect="non-scaling-stroke"
+          style="filter: drop-shadow(0 0 5px rgb(255 166 61 / 0.7))"
+        />
+      </svg>
+    </div>
+    <p id="online-label" class="relative text-sub">Online now</p>
+    <p
+      class="display num relative mt-3 bg-gradient-to-b from-ink to-sodium bg-clip-text text-[120px] leading-[0.9] text-transparent sm:text-[148px]"
+      style="filter: drop-shadow(0 0 28px rgb(255 166 61 / 0.28))"
+    >
+      @if (count() !== null) {
+        <pl-num [value]="count()!" [duration]="900" />
+      } @else {
+        <span class="text-faint">–</span>
+      }
+    </p>
+    <p class="relative mt-3 text-sm text-sub">
+      {{ count() === 1 ? 'visitor' : 'visitors' }}
+      {{ ctx.site() === 'all' ? 'across all sites' : 'on ' + ctx.siteLabel() }}, active in the last
+      5 minutes
+    </p>
+
+    <ul class="relative mt-7 space-y-1 border-t border-line pt-4" aria-label="Online per site">
+      @for (row of perSite(); track row.site.id) {
+        <li
+          class="relative flex h-9 items-center gap-2.5 overflow-hidden rounded-lg px-2"
+          [class.opacity-45]="row.active === 0"
+        >
+          <span
+            class="absolute inset-y-0 left-0 origin-left rounded-lg bg-mint/10"
+            [style.width.%]="100"
+            [style.transform]="'scaleX(' + (row.active / maxActive()) * 0.96 + ')'"
+            style="transition: transform 0.8s var(--ease-out)"
+            aria-hidden="true"
+          ></span>
+          <pl-site-icon class="relative" [domain]="row.site.domain" [size]="18" />
+          <span class="relative min-w-0 flex-1 truncate text-[13.5px]">{{ row.site.domain }}</span>
+          <span class="num relative text-[13.5px] font-medium">{{ row.active }}</span>
+        </li>
+      } @empty {
+        <li class="px-2 py-3 text-sm text-faint">No sites yet.</li>
+      }
+    </ul>
+  </section>
+
+  <section
+    class="panel rise flex flex-col p-4 sm:p-5"
+    style="--i: 1"
+    aria-label="Where visitors are landing"
+  >
+    <div class="mb-3 flex items-center justify-between">
+      <h2 class="text-[15px] font-medium text-ink">Where hits land</h2>
+      <p class="text-xs text-faint">A ring appears at the visitor's country</p>
+    </div>
+    <div class="flex flex-1 items-center">
+      @defer (on viewport; prefetch on idle) {
+        <pl-world-map class="w-full" [pulses]="pulses()" />
+      } @placeholder {
+        <div class="skeleton aspect-[960/500] w-full rounded-2xl"></div>
+      }
+    </div>
+  </section>
+</div>
+
+<section class="panel rise p-4 sm:p-5" style="--i: 2" aria-labelledby="feed-title">
+  <div class="mb-3 flex items-baseline justify-between gap-3">
+    <h2 id="feed-title" class="text-[15px] font-medium text-ink">Live feed</h2>
+    <p class="text-xs text-faint">Latest {{ feed().length }} hits</p>
+  </div>
+  <ul class="divide-y divide-line/60" aria-live="off">
+    @for (hit of feed(); track hit.id; let i = $index) {
+      <li
+        class="feed-row grid"
+        [class.fresh]="hit.fresh"
+        [style.animation-delay.ms]="hit.fresh ? 0 : i < 12 ? i * 45 : 540"
+      >
+        <div class="min-h-0 overflow-hidden">
+          <div
+            class="grid items-center gap-x-4 gap-y-1 px-2 py-2.5 text-[13.5px] sm:grid-cols-[3rem_11rem_minmax(0,1fr)_10rem_11rem]"
+          >
+            <span class="num order-2 text-xs text-faint sm:order-none sm:text-[13px]">{{
+              hit.age
+            }}</span>
+            <span class="order-3 flex min-w-0 items-center gap-2 text-sub sm:order-none">
+              <pl-site-icon [domain]="hit.domain" [size]="16" />
+              <span class="truncate">{{ hit.domain }}</span>
+            </span>
+            <span class="order-1 flex min-w-0 items-center gap-2 sm:order-none">
+              @if (hit.kind === 'event') {
+                <span
+                  class="shrink-0 rounded-md bg-sodium/12 px-1.5 py-0.5 text-xs font-medium text-sodium"
+                  >{{ hit.name }}</span
+                >
+              }
+              <span class="truncate text-ink">{{ hit.path }}</span>
+            </span>
+            <span class="order-4 truncate text-sub sm:order-none"
+              ><span aria-hidden="true">{{ flag(hit.country) || '🌐' }}</span> {{ hit.place }}</span
+            >
+            <span class="order-5 truncate text-xs text-faint sm:order-none sm:text-[13px]"
+              >{{ hit.browser }} · {{ hit.os }}</span
+            >
+          </div>
+        </div>
+      </li>
+    } @empty {
+      <li class="flex flex-col items-center gap-3 py-12 text-center text-sub">
+        <span
+          class="size-2.5 rounded-full bg-sodium"
+          style="animation: breathe 2.4s ease-in-out infinite"
+        ></span>
+        Waiting for the next visitor. New hits slide in here.
+      </li>
+    }
+  </ul>
+</section>
