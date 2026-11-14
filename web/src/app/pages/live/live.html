@@ -52,7 +52,7 @@
       @if (count() !== null) {
         <pl-num [value]="count()!" [duration]="900" />
       } @else {
-        <span class="text-faint">–</span>
+        <span class="skeleton inline-block h-[100px] w-24 align-top" aria-busy="true"></span>
       }
     </p>
     <p class="relative mt-3 text-sm text-sub">
@@ -150,7 +150,11 @@
           class="size-2.5 rounded-full bg-sodium"
           style="animation: breathe 2.4s ease-in-out infinite"
         ></span>
-        Waiting for the next visitor. New hits slide in here.
+        {{
+          live.connected()
+            ? 'Waiting for the next visitor. New hits slide in here.'
+            : "Can't reach the live stream. Pulse keeps retrying."
+        }}
       </li>
     }
   </ul>

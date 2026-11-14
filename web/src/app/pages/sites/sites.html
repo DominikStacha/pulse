@@ -75,7 +75,7 @@
   }
 </section>
 
-@if (sites.list(); as list) {
+@if (ordered(); as list) {
   @if (list.length) {
     <ul class="grid grid-cols-1 gap-4 xl:grid-cols-2" aria-label="Sites">
       @for (site of list; track site.id; let i = $index) {

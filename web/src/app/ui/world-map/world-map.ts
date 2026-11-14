@@ -174,7 +174,7 @@ export class WorldMap {
     return new Map(
       rows.map((r) => {
         // sqrt: a country with 1% of the traffic should still be visible next to one with 60%
-        const t = 0.3 + 0.7 * Math.sqrt(r.visitors / max);
+        const t = 0.38 + 0.62 * Math.sqrt(r.visitors / max);
         return [
           r.key ?? '',
           `color-mix(in oklab, ${LAND}, var(--color-sodium) ${Math.round(t * 92)}%)`,

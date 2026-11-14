@@ -14,12 +14,12 @@ import { WorldMap } from '../../ui/world-map/world-map';
   template: `
     <h2 class="mb-3 text-[15px] font-medium text-ink">Countries</h2>
     <div
-      class="grid gap-x-8 gap-y-5 transition-opacity duration-300 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]"
+      class="grid gap-x-8 gap-y-5 transition-opacity duration-300 xl:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]"
       [class.opacity-50]="query.loading() && query.data()"
     >
       @if (query.error() && !query.data()) {
         <pl-state
-          class="lg:col-span-2"
+          class="xl:col-span-2"
           kind="error"
           title="Couldn't load countries"
           message="The API didn't answer."

@@ -46,6 +46,14 @@ export class SitesPage {
       new Map((this.week.hasValue() ? this.week.value().rows : []).map((r) => [r.key, r.visitors])),
   );
 
+  /** The site that was just added leads the list, so it is not hidden below the fold. */
+  protected readonly ordered = computed(() => {
+    const list = this.sites.list();
+    const added = this.added();
+    if (!list || !added) return list;
+    return [...list.filter((s) => s.id === added.id), ...list.filter((s) => s.id !== added.id)];
+  });
+
   protected readonly name = signal('');
   protected readonly domain = signal('');
   protected readonly touched = signal(false);
@@ -87,20 +95,7 @@ export class SitesPage {
   }
 
   protected async copy(site: Site): Promise<void> {
-    const text = embedSnippet(site.id);
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      // Clipboard API needs a secure context; fall back to selecting a hidden field.
-      const field = document.createElement('textarea');
-      field.value = text;
-      field.style.position = 'fixed';
-      field.style.opacity = '0';
-      document.body.appendChild(field);
-      field.select();
-      document.execCommand('copy');
-      field.remove();
-    }
+    if (!(await copyText(embedSnippet(site.id)))) return;
     this.copied.set(site.id);
     setTimeout(() => this.copied.update((id) => (id === site.id ? null : id)), 1800);
   }
@@ -130,4 +125,29 @@ function describe(e: unknown): string {
   if (e.status === 401 || e.status === 403)
     return 'Access denied. Sign in through Cloudflare Access again.';
   return `Could not add the site (HTTP ${e.status}). Try again.`;
+}
+
+/**
+ * The async Clipboard API needs a secure context and a focused page, and in some
+ * browsers never settles when it is refused; give it a second, then fall back
+ * to selecting a hidden field.
+ */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await Promise.race([
+      navigator.clipboard.writeText(text),
+      new Promise<never>((_, reject) => setTimeout(reject, 1000)),
+    ]);
+    return true;
+  } catch {
+    const field = document.createElement('textarea');
+    field.value = text;
+    field.style.position = 'fixed';
+    field.style.opacity = '0';
+    document.body.appendChild(field);
+    field.select();
+    const ok = document.execCommand('copy');
+    field.remove();
+    return ok;
+  }
 }

@@ -15,7 +15,9 @@
         [class.opacity-50]="summary.loading()"
       >
         <p class="text-[13px] text-sub">{{ k.label }}</p>
-        <p class="display num mt-2.5 text-[34px] sm:text-[42px]">
+        <p
+          class="display num mt-2.5 text-[34px] whitespace-nowrap sm:text-[42px] lg:text-[32px] xl:text-[42px]"
+        >
           <pl-num [value]="k.value" [format]="k.format" />
         </p>
         <p class="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
@@ -180,44 +182,44 @@
 </section>
 
 <!-- Breakdowns: in "All sites" the sites panel leads, in a single site the lists share the row. -->
-<div class="grid grid-cols-1 gap-4 lg:grid-cols-12">
+<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-12">
   @if (ctx.site() === 'all') {
     <pl-breakdown-panel
-      class="rise lg:col-span-4"
+      class="rise xl:col-span-4"
       style="--i: 2"
       title="Sites"
       [tabs]="sites"
       icon="site"
       emptyHint="Add a site and its visitors will be ranked here."
     />
-    <pl-breakdown-panel class="rise lg:col-span-4" style="--i: 3" title="Pages" [tabs]="pages" />
+    <pl-breakdown-panel class="rise xl:col-span-4" style="--i: 3" title="Pages" [tabs]="pages" />
     <pl-breakdown-panel
-      class="rise lg:col-span-4"
+      class="rise md:col-span-2 xl:col-span-4"
       style="--i: 4"
       title="Referrers"
       [tabs]="referrers"
       emptyHint="Most visits are direct so far. Referrers show up when someone follows a link."
     />
   } @else {
-    <pl-breakdown-panel class="rise lg:col-span-6" style="--i: 2" title="Pages" [tabs]="pages" />
+    <pl-breakdown-panel class="rise xl:col-span-6" style="--i: 2" title="Pages" [tabs]="pages" />
     <pl-breakdown-panel
-      class="rise lg:col-span-6"
+      class="rise xl:col-span-6"
       style="--i: 3"
       title="Referrers"
       [tabs]="referrers"
       emptyHint="Most visits are direct so far. Referrers show up when someone follows a link."
     />
   }
-  <pl-countries-panel class="rise lg:col-span-12" style="--i: 5" />
-  <pl-breakdown-panel class="rise lg:col-span-4" style="--i: 6" title="Technology" [tabs]="tech" />
+  <pl-countries-panel class="rise md:col-span-2 xl:col-span-12" style="--i: 5" />
+  <pl-breakdown-panel class="rise xl:col-span-4" style="--i: 6" title="Technology" [tabs]="tech" />
   <pl-breakdown-panel
-    class="rise lg:col-span-4"
+    class="rise xl:col-span-4"
     style="--i: 7"
     title="Languages"
     [tabs]="languages"
   />
   <pl-breakdown-panel
-    class="rise lg:col-span-4"
+    class="rise md:col-span-2 xl:col-span-4"
     style="--i: 8"
     title="Events"
     [tabs]="events"
