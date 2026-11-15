@@ -7,6 +7,9 @@
   amber for the thing that is happening (visitors), cool periwinkle for the
   supporting series, mint only for "alive / healthy".
 */
+/* Landscape phones: the bottom bar and page chrome shrink to make room for content. */
+@custom-variant short (@media (max-height: 480px));
+
 @theme {
   --font-sans: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'Geist Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -36,6 +39,12 @@
 html {
   background: var(--color-bg);
   -webkit-text-size-adjust: 100%;
+}
+/* Below lg the bottom bar covers the page edge: focused elements must scroll clear of it. */
+@media (max-width: 1023.98px) {
+  html {
+    scroll-padding-bottom: 6rem;
+  }
 }
 
 body {
@@ -80,7 +89,6 @@ body::after {
 :focus-visible {
   outline: 2px solid var(--color-sodium);
   outline-offset: 2px;
-  border-radius: 6px;
 }
 
 button,
@@ -148,6 +156,23 @@ button {
     border-color: color-mix(in oklab, var(--color-line), white 18%);
     background: rgb(255 255 255 / 0.06);
   }
+  /* Fingers: every tappable chip is at least 44px tall; read-only chips keep their size. */
+  @media (pointer: coarse) {
+    :is(button, a).chip {
+      min-height: 44px;
+    }
+  }
+
+  /*
+    A bar that spans its whole row and is revealed up to --fill (0-1). Clipping, not
+    scaling, so the rounded ends stay round at any length. Set --bar-r for other radii.
+  */
+  .bar-fill {
+    clip-path: inset(0 calc((1 - var(--fill, 1)) * 100%) 0 0 round var(--bar-r, 8px));
+    transition: clip-path 0.8s var(--ease-out);
+    animation: bar-reveal 0.9s var(--ease-out) backwards;
+    animation-delay: calc(var(--i, 0) * 45ms);
+  }
 
   .skeleton {
     background: linear-gradient(
@@ -194,6 +219,11 @@ button {
     transform: scaleX(0);
   }
 }
+@keyframes bar-reveal {
+  from {
+    clip-path: inset(0 100% 0 0 round var(--bar-r, 8px));
+  }
+}
 @keyframes ring {
   from {
     transform: scale(0.35);
@@ -221,12 +251,19 @@ button {
   }
 }
 
-/* Route changes: the page cross-fades, the navigation rail stays put. */
+/*
+  Route changes fade through: the old page is gone in 90 ms, then the new one rises 4 px into
+  place, so the two never show at once. The navigation rail stays put.
+*/
+::view-transition-old(root),
+::view-transition-new(root) {
+  mix-blend-mode: normal;
+}
 ::view-transition-old(root) {
-  animation: 140ms ease-in both vt-out;
+  animation: 90ms ease-in both vt-out;
 }
 ::view-transition-new(root) {
-  animation: 380ms var(--ease-out) both vt-in;
+  animation: 300ms var(--ease-out) 80ms both vt-in;
 }
 @keyframes vt-out {
   to {
@@ -236,7 +273,7 @@ button {
 @keyframes vt-in {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(4px);
   }
 }
 .vt-rail {
@@ -289,6 +326,39 @@ button {
     transform: translateY(-6px) scale(0.98);
   }
 }
+/* On phones the same menu is a bottom sheet: thumb reach, a scrim, safe-area aware. */
+.menu[popover].sheet {
+  position: fixed;
+  inset: auto 0 0 0;
+  width: 100%;
+  max-width: none;
+  max-height: 70dvh;
+  border-radius: 20px 20px 0 0;
+  border-width: 1px 0 0;
+  padding-bottom: calc(0.375rem + env(safe-area-inset-bottom));
+  transform: translateY(100%);
+}
+.menu[popover].sheet:popover-open {
+  transform: none;
+}
+@starting-style {
+  .menu[popover].sheet:popover-open {
+    opacity: 1;
+    transform: translateY(100%);
+  }
+}
+.menu[popover].sheet::backdrop {
+  background: rgb(0 0 0 / 0.55);
+  transition:
+    opacity 0.2s,
+    display 0.2s allow-discrete,
+    overlay 0.2s allow-discrete;
+}
+@starting-style {
+  .menu[popover].sheet:popover-open::backdrop {
+    opacity: 0;
+  }
+}
 
 /* Navigation: the current page gets a lit icon and a soft glow on the rail. */
 .nav-link.is-active {
@@ -305,7 +375,7 @@ aside .nav-link.is-active {
 aside .nav-link.is-active::before {
   content: '';
   position: absolute;
-  left: -16px;
+  left: calc(var(--rail-px, 1rem) * -1);
   top: 22%;
   bottom: 22%;
   width: 3px;
@@ -316,6 +386,7 @@ aside .nav-link.is-active::before {
 
 /* Chart legend toggles on the Overview. */
 .legend {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -338,6 +409,20 @@ aside .nav-link.is-active::before {
 }
 .legend:hover {
   color: var(--color-ink);
+}
+.legend[aria-disabled='true'] {
+  cursor: default;
+}
+/* Fingers: look 36px, hit 44px (the pseudo-element is the slop; neighbours meet in the gap). */
+@media (pointer: coarse) {
+  .legend {
+    min-height: 36px;
+  }
+  .legend::after {
+    content: '';
+    position: absolute;
+    inset: -4px -3px;
+  }
 }
 
 /* Live feed rows slide open from zero height; fresh ones also flash amber once. */
@@ -382,6 +467,17 @@ aside .nav-link.is-active::before {
 }
 input[type='search']::-webkit-search-cancel-button {
   filter: invert(0.7);
+}
+/* iOS zooms into any focused text field under 16px, and fingers want a taller target. */
+@media (pointer: coarse) {
+  input:not([type='checkbox'], [type='radio'], [type='range']),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+  .field {
+    height: 44px;
+  }
 }
 
 /* The Live hero's heartbeat trace scrolls forever; two periods are visible, the path holds four. */
