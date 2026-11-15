@@ -26,6 +26,8 @@ builder.Services.AddSingleton<Events>();
 builder.Services.AddSingleton<Access>();
 builder.Services.AddHttpClient("jwks", c => c.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddHostedService<Retention>();
+var demo = args.Length > 0 && args[0] == "seed-demo";
+if (demo && args.Contains("--live")) builder.Services.AddHostedService<Demo.Live>();
 
 var app = builder.Build();
 var dev = app.Environment.IsDevelopment();
@@ -38,6 +40,16 @@ if (dev && !authDisabled && !access.Configured)
     app.Logger.LogWarning("Cloudflare Access is not configured: every /api request except /api/send will get 401. Set Pulse:Auth:Disabled=true for local work.");
 
 var db = app.Services.GetRequiredService<Db>(); // creates the schema, seeds the sites
+
+if (demo)
+{
+    if (!dev) throw new InvalidOperationException("seed-demo only runs in the Development environment.");
+    int Arg(string name, int fallback) => Array.IndexOf(args, name) is >= 0 and var i && i + 1 < args.Length && int.TryParse(args[i + 1], out var v) ? v : fallback;
+    var live = args.Contains("--live");
+    var days = Arg("--days", live ? 0 : 120);
+    if (days > 0) Demo.Seed(db, app.Services.GetRequiredService<TimeProvider>(), days, args.Contains("--reset"));
+    if (!live) return;
+}
 
 // --- dashboard API: Cloudflare Access JWT, except the public ingestion endpoint ---
 app.Use(async (ctx, next) =>
