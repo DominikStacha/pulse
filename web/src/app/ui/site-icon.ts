@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  linkedSignal,
+} from '@angular/core';
+import { SitesService } from '../core/sites';
 import { Icon } from './icon';
 
 function hue(text: string): number {
@@ -7,7 +15,12 @@ function hue(text: string): number {
   return h;
 }
 
-/** A site's favicon, or a coloured monogram until (or unless) it loads. */
+/**
+ * A site's icon, or a coloured monogram until (or unless) it loads. Icons come only from
+ * the API (GET /api/sites/{id}/icon), never from the site's own domain, so the browser
+ * never contacts a third party and the CSP can stay `img-src 'self' data:`.
+ * Pass `siteId`, or a `domain` that belongs to a known site; anything else stays a monogram.
+ */
 @Component({
   selector: 'pl-site-icon',
   imports: [Icon],
@@ -20,7 +33,7 @@ function hue(text: string): number {
     '[style.background]': 'background()',
   },
   template: `
-    @if (domain(); as d) {
+    @if (domain()) {
       @if (!loaded()) {
         <span
           class="font-semibold leading-none"
@@ -29,18 +42,24 @@ function hue(text: string): number {
           >{{ letter() }}</span
         >
       }
-      @if (!failed()) {
+      @if (src(); as url) {
         <img
-          class="absolute inset-0 size-full object-contain p-[12%] transition-opacity duration-300"
-          [class.opacity-0]="!loaded()"
-          [src]="'https://' + d + '/favicon.ico'"
+          class="absolute inset-0 size-full object-contain p-[12%] opacity-[.88] transition-opacity duration-300"
+          [style.opacity]="loaded() ? null : 0"
+          [src]="url"
           alt=""
           loading="lazy"
           decoding="async"
-          referrerpolicy="no-referrer"
-          (load)="loaded.set(true)"
-          (error)="failed.set(true)"
+          (load)="state.set('loaded')"
+          (error)="state.set('failed')"
         />
+        @if (loaded()) {
+          <!-- A hairline keeps a white favicon tile from glaring on the dark UI. -->
+          <span
+            aria-hidden="true"
+            class="pointer-events-none absolute inset-0 rounded-[inherit] ring-1 ring-inset ring-white/10"
+          ></span>
+        }
       }
     } @else {
       <pl-icon name="globe" [size]="size() * 0.62" />
@@ -50,10 +69,26 @@ function hue(text: string): number {
 export class SiteIcon {
   /** null renders the "all sites" globe. */
   readonly domain = input<string | null>(null);
+  /** The site's id, when the caller has it; otherwise it is found from `domain`. */
+  readonly siteId = input<string | null>(null);
   readonly size = input(22);
 
-  protected readonly loaded = signal(false);
-  protected readonly failed = signal(false);
+  private readonly sites = inject(SitesService);
+
+  /** Null (monogram only) until there is a known site to ask for, and after a failed load. */
+  protected readonly src = computed(() => {
+    const domain = this.domain();
+    const id =
+      this.siteId() ?? (domain ? this.sites.list()?.find((s) => s.domain === domain)?.id : null);
+    return id && !this.failed() ? `/api/sites/${encodeURIComponent(id)}/icon` : null;
+  });
+  /** Starts over whenever the icon URL's site changes. */
+  protected readonly state = linkedSignal<string | null, 'loading' | 'loaded' | 'failed'>({
+    source: () => this.siteId() ?? this.domain(),
+    computation: () => 'loading',
+  });
+  protected readonly loaded = computed(() => this.state() === 'loaded');
+  protected readonly failed = computed(() => this.state() === 'failed');
   protected readonly letter = computed(() =>
     (this.domain() ?? '?')
       .replace(/^(www|new|portal)\./, '')

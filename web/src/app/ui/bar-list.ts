@@ -7,8 +7,9 @@ import { SiteIcon } from './site-icon';
 export type RowIcon = 'none' | 'flag' | 'site';
 
 /**
- * Ranked rows with a bar behind each label. Bars grow in on first paint, then
- * glide to their new width when the tab or period changes (rows keep their key).
+ * Ranked rows with a bar behind each label. The leader's bar spans the whole row. Bars
+ * wipe in on first paint, then glide to their new length when the tab or period changes
+ * (rows keep their key). They are clipped, not scaled, so the rounded ends stay round.
  */
 @Component({
   selector: 'pl-bar-list',
@@ -24,9 +25,8 @@ export type RowIcon = 'none' | 'flag' | 'site';
         >
           <span
             aria-hidden="true"
-            class="bar absolute inset-y-0 left-0 origin-left rounded-lg"
-            [style.width.%]="100"
-            [style.transform]="'scaleX(' + row.fill + ')'"
+            class="bar-fill absolute inset-0"
+            [style.--fill]="row.fill"
             [style.--i]="i"
             [style.background]="color()"
           ></span>
@@ -39,7 +39,7 @@ export type RowIcon = 'none' | 'flag' | 'site';
               >
             }
             @case ('site') {
-              <pl-site-icon class="relative" [domain]="row.domain" [size]="18" />
+              <pl-site-icon class="relative" [siteId]="row.key" [domain]="row.domain" [size]="18" />
             }
           }
           <span class="relative min-w-0 flex-1 truncate text-[13.5px] text-ink">{{
@@ -52,13 +52,6 @@ export type RowIcon = 'none' | 'flag' | 'site';
         </li>
       }
     </ul>
-  `,
-  styles: `
-    .bar {
-      transition: transform 0.8s var(--ease-out);
-      animation: bar-in 0.9s var(--ease-out) backwards;
-      animation-delay: calc(var(--i, 0) * 45ms);
-    }
   `,
 })
 export class BarList {
@@ -76,11 +69,13 @@ export class BarList {
     const max = Math.max(1, ...rows.map((r) => r[metric]));
     return rows.map((r) => ({
       id: r.key ?? '(none)',
+      key: r.key,
       label: r.label,
       value: formatNumber(r[metric]),
       share: formatPercent(r.share),
-      fill: Math.max(0.02, (r[metric] / max) * 0.96),
+      fill: Math.max(0.02, r[metric] / max),
       flag: flag(r.key),
+      // The label stands in for the domain only so the monogram has a letter; it is never looked up.
       domain: this.icon() === 'site' ? (this.sites.byId(r.key ?? '')?.domain ?? r.label) : null,
       title: `${r.label}: ${formatNumber(r.visitors)} visitors, ${formatNumber(r.count)} ${this.metric() === 'count' ? 'events' : 'pageviews'}`,
     }));

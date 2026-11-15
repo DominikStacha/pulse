@@ -30,10 +30,11 @@ describe('BarList', () => {
     expect(items[2].textContent).toContain('Direct');
   });
 
-  it('scales every bar against the biggest row', () => {
-    const bars = [...render().querySelectorAll<HTMLElement>('.bar')].map((b) => b.style.transform);
-    expect(bars[0]).toContain('0.96');
-    expect(bars[1]).toContain('0.48');
+  it('fills every bar against the biggest row, and the leader spans the whole row', () => {
+    const fills = [...render().querySelectorAll<HTMLElement>('.bar-fill')].map((b) =>
+      b.style.getPropertyValue('--fill'),
+    );
+    expect(fills).toEqual(['1', '0.5', '0.25']);
   });
 
   it('draws flags for country lists and falls back to a globe when there is no code', () => {
