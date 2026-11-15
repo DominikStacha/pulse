@@ -1,0 +1,30 @@
+# Pulse on the Raspberry Pi: ~/pulse/docker-compose.yml (see docs/DEPLOY.md).
+# Image is built on the Mac for linux/arm64 and loaded with `docker load`.
+services:
+  pulse:
+    image: pulse:latest
+    container_name: pulse
+    restart: unless-stopped
+    # domin, so the bind-mounted ./data stays writable without chown games.
+    user: "1000:1000"
+    env_file: .env            # PULSE_ACCESS_TEAM_DOMAIN, PULSE_ACCESS_AUD
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: "3000"
+      TZ: Europe/Prague
+    volumes:
+      - ./data:/data
+      - /home/domin/pi-status:/status:ro
+    networks:
+      stachatech_default:
+        # Transitional: stacha.tech's nginx (/a/script.js, /a/api/send) and the
+        # stats.stacha.tech tunnel rule still address analytics-umami:3000.
+        # Drop this alias once both point at `pulse`.
+        aliases: [analytics-umami]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
+
+networks:
+  stachatech_default:
+    external: true
