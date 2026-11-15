@@ -160,4 +160,60 @@ describe('StatusPage', () => {
     const { el } = render(null, 'No status data yet.');
     expect(el.textContent).toContain('No status data yet.');
   });
+
+  it('is plain "normal" (mint) when the only containers stopped are stopped on purpose', () => {
+    const { el } = render(
+      snapshot({
+        containers: [
+          container({ name: 'api', id: 'api' }),
+          container({
+            name: 'one-shot',
+            id: 'one',
+            running: false,
+            state: 'exited',
+            health: null,
+            restartPolicy: 'no',
+            exitCode: 0,
+          }),
+        ],
+      }),
+    );
+    expect(el.querySelector('[aria-label="Overall status"]')?.getAttribute('data-sev')).toBe('ok');
+    expect(el.textContent).toContain('All systems normal');
+  });
+
+  it('says why it needs attention', () => {
+    const { el } = render(snapshot({ errors: ['docker stats: timeout'] }));
+    expect(el.textContent).toContain('Needs attention');
+    expect(el.textContent).toContain('1 collector warning.');
+  });
+
+  it('does not claim to refresh automatically while the collector is silent', () => {
+    const { el } = render(snapshot({ generatedAt: '2026-11-14T11:50:00Z' }));
+    expect(el.textContent).toContain('Last reported 10m ago.');
+    expect(el.textContent).not.toContain('refreshes automatically');
+  });
+
+  it('shows a missing status once, as the empty state and not also as a banner', () => {
+    const { el } = render(null, 'No status data yet.');
+    expect(el.textContent?.split('No status data yet.').length).toBe(2);
+    expect(el.querySelectorAll('[role="alert"]').length).toBe(1);
+  });
+
+  it('offers to clear a search that matches nothing', async () => {
+    const { el, fixture } = render(snapshot());
+    const input = el.querySelector<HTMLInputElement>('input[type="search"]')!;
+    input.value = 'zzz';
+    input.dispatchEvent(new Event('input'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(el.textContent).toContain('No container matches “zzz”');
+    expect(el.textContent).not.toContain('switch to All');
+    [...el.querySelectorAll<HTMLButtonElement>('button')]
+      .find((b) => b.textContent?.includes('Clear search'))!
+      .click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(el.querySelector('pl-service-card')).not.toBeNull();
+  });
 });

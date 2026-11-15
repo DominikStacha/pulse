@@ -11,7 +11,7 @@
 >
   <button
     type="button"
-    class="chip gap-2 self-start py-[7px] text-[13px] sm:self-auto"
+    class="chip h-9 gap-2 self-start py-0 text-[13px] pointer-coarse:h-11 sm:self-auto"
     (click)="status.refresh()"
     [disabled]="status.loading()"
   >
@@ -20,7 +20,7 @@
   </button>
 </pl-page-header>
 
-@if (status.error(); as error) {
+@if (snapshot() && status.error(); as error) {
   <div
     class="rise mb-4 flex gap-3 rounded-2xl border border-down/30 bg-down/[0.07] p-4 text-sm text-down"
     role="alert"
@@ -72,7 +72,7 @@
       <div class="panel p-5">
         <div class="skeleton h-3.5 w-20"></div>
         <div class="mt-4 flex items-center gap-4">
-          <div class="skeleton size-24 !rounded-full"></div>
+          <div class="skeleton size-24 shrink-0 rounded-full"></div>
           <div class="skeleton h-4 w-28"></div>
         </div>
         <div class="skeleton mt-5 h-11 w-full"></div>
@@ -87,42 +87,46 @@
     [attr.data-sev]="overall()"
     aria-label="Overall status"
   >
-    <span
-      class="relative grid size-[68px] shrink-0 place-items-center rounded-full"
-      style="
-        color: var(--sev);
-        background: color-mix(in oklab, var(--sev) 12%, transparent);
-        box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--sev) 40%, transparent);
-      "
-    >
-      @if (overall() === 'ok' || overall() === 'idle') {
-        <span
-          class="absolute inset-0 rounded-full"
-          style="background: var(--sev); animation: ring 2.8s ease-out infinite; opacity: 0.4"
-        ></span>
-      }
-      <pl-icon
-        [name]="overall() === 'down' || overall() === 'warn' ? 'alert' : 'check'"
-        [size]="30"
-      />
-    </span>
-    <div class="min-w-0 flex-1 basis-60">
-      <p
-        class="display text-[28px] sm:text-[34px]"
-        [style.color]="overall() === 'ok' || overall() === 'idle' ? null : 'var(--sev)'"
+    <div class="flex min-w-0 flex-1 basis-64 items-center gap-4 sm:gap-5">
+      <span
+        class="relative grid size-14 sm:size-[68px] shrink-0 place-items-center rounded-full"
+        style="
+          color: var(--sev);
+          background: color-mix(in oklab, var(--sev) 12%, transparent);
+          box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--sev) 40%, transparent);
+        "
       >
-        {{ overallLabel() }}
-      </p>
-      <p class="mt-2 text-sm text-sub" aria-live="polite">
-        @if (dataAge(); as age) {
-          Collected {{ age }}, refreshes automatically.
+        @if (overall() === 'ok') {
+          <span
+            class="absolute inset-0 rounded-full motion-reduce:hidden"
+            style="background: var(--sev); animation: ring 2.8s ease-out infinite; opacity: 0.4"
+          ></span>
         }
-        @if (snap.host?.kernel) {
-          <span class="text-faint"> Kernel {{ snap.host!.kernel }}.</span>
-        }
-      </p>
+        <pl-icon
+          [name]="overall() === 'down' || overall() === 'warn' ? 'alert' : 'check'"
+          [size]="30"
+        />
+      </span>
+      <div class="min-w-0 flex-1">
+        <p
+          class="display text-balance text-[26px] sm:text-[34px]"
+          [style.color]="overall() === 'ok' ? null : 'var(--sev)'"
+        >
+          {{ overallLabel() }}
+        </p>
+        <p class="mt-2 text-sm text-sub" aria-live="polite">
+          @if (stale()) {
+            Last reported {{ dataAge() }}.
+          } @else {
+            @if (reasons(); as why) {
+              <span class="block" style="color: var(--sev)">{{ why }}.</span>
+            }
+            Collected {{ dataAge() }}, refreshes automatically.
+          }
+        </p>
+      </div>
     </div>
-    <dl class="flex gap-6 text-sm">
+    <dl class="flex gap-6 text-sm transition-opacity duration-500" [class.opacity-50]="stale()">
       <div>
         <dt class="text-xs text-faint">Healthy</dt>
         <dd class="display num mt-1 text-[26px]" style="color: var(--color-mint)">
@@ -157,24 +161,26 @@
   <!-- Host vitals -->
   @if (vitals().length) {
     <section aria-labelledby="host-title" class="mb-8">
-      <h2 id="host-title" class="mb-3 px-1 text-[15px] font-medium text-ink">Host</h2>
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        @for (v of gauges(); track v.key; let i = $index) {
-          <pl-vital-tile
-            class="rise"
-            [style.--i]="i + 1"
-            [reading]="v"
-            [format]="formatterFor(v.key)"
-          />
-        }
-      </div>
-      @if (facts().length) {
-        <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          @for (v of facts(); track v.key; let i = $index) {
-            <pl-vital-tile class="rise" [style.--i]="gauges().length + i + 1" [reading]="v" />
+      <h2 id="host-title" class="mb-3 text-[15px] font-medium text-ink">Host</h2>
+      <div [class]="stale() ? dimmed : fresh">
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          @for (v of gauges(); track v.key; let i = $index) {
+            <pl-vital-tile
+              class="rise"
+              [style.--i]="i + 1"
+              [reading]="v"
+              [format]="formatterFor(v.key)"
+            />
           }
         </div>
-      }
+        @if (facts().length) {
+          <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            @for (v of facts(); track v.key; let i = $index) {
+              <pl-vital-tile class="rise" [style.--i]="gauges().length + i + 1" [reading]="v" />
+            }
+          </div>
+        }
+      </div>
     </section>
   } @else {
     <p class="mb-8 rounded-2xl border border-line p-4 text-sm text-sub">
@@ -184,7 +190,7 @@
 
   <!-- Containers -->
   <section aria-labelledby="svc-title">
-    <div class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-1">
+    <div class="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
       <h2 id="svc-title" class="text-[15px] font-medium text-ink">Containers</h2>
       <div class="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
         <label class="relative block sm:w-52">
@@ -195,9 +201,10 @@
             class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-faint"
           />
           <input
+            #q
             type="search"
             placeholder="Filter by name"
-            class="w-full rounded-xl border border-line bg-black/25 py-[7px] pl-9 pr-3 text-[13px] text-ink placeholder:text-faint"
+            class="w-full rounded-xl border border-line bg-black/25 py-[7px] pl-9 pr-3 text-[13px] text-ink placeholder:text-faint pointer-coarse:h-11 pointer-coarse:py-0 pointer-coarse:text-base"
             [value]="search()"
             (input)="onSearch($event)"
           />
@@ -212,7 +219,10 @@
     </div>
 
     @if (visible().length) {
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div
+        class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
+        [class]="stale() ? dimmed : fresh"
+      >
         @for (s of visible(); track s.container.id; let i = $index) {
           <pl-service-card
             class="rise"
@@ -223,17 +233,29 @@
           />
         }
       </div>
+    } @else if (searchTerm()) {
+      <div class="panel flex flex-col items-center justify-center gap-1 px-4 py-10 text-center">
+        <span class="mb-2 grid size-9 place-items-center rounded-full bg-white/5 text-faint">
+          <pl-icon name="search" [size]="18" />
+        </span>
+        <p class="max-w-full break-words font-medium text-ink">
+          No container matches “{{ searchTerm() }}”
+        </p>
+        <p class="max-w-sm text-sm text-sub">
+          Names and images are searched, so a shorter part may help.
+        </p>
+        <button
+          type="button"
+          class="chip mt-3 text-ink pointer-coarse:h-11"
+          (click)="search.set(''); q.focus()"
+        >
+          Clear search
+        </button>
+      </div>
     } @else {
       <div class="panel">
         <pl-state
-          [title]="
-            search()
-              ? 'No container matches'
-              : view() === 'stopped'
-                ? 'Nothing is stopped'
-                : 'No containers reported'
-          "
-          [message]="search() ? 'Try a shorter name or switch to All.' : ''"
+          [title]="view() === 'stopped' ? 'Nothing is stopped' : 'No containers reported'"
         />
       </div>
     }
@@ -241,7 +263,7 @@
 
   @if (collectorErrors().length) {
     <section class="mt-8" aria-labelledby="warn-title">
-      <h2 id="warn-title" class="mb-3 px-1 text-[15px] font-medium text-ink">Collector warnings</h2>
+      <h2 id="warn-title" class="mb-3 text-[15px] font-medium text-ink">Collector warnings</h2>
       <ul
         class="space-y-1 rounded-2xl border border-line bg-black/20 p-4 font-mono text-xs text-sub"
       >
@@ -256,7 +278,7 @@
     <pl-state
       kind="error"
       title="No status to show"
-      message="Pulse could not read the Pi's status file."
+      [message]="status.error() ?? ''"
       [retryable]="true"
       (retry)="status.refresh()"
     />

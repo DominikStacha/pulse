@@ -8,7 +8,7 @@ import { StatusBadge } from '../../ui/status-badge';
   imports: [StatusBadge],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: {
-    class: 'panel block p-4 !rounded-2xl transition-colors hover:border-white/15',
+    class: 'panel flex flex-col p-4 !rounded-2xl transition-colors hover:border-white/15',
     '[attr.data-sev]': 'severity()',
   },
   template: `
@@ -52,19 +52,22 @@ import { StatusBadge } from '../../ui/status-badge';
     </dl>
 
     @if (memoryPercent() !== null) {
-      <div
-        class="mt-3.5 h-1 overflow-hidden rounded-full bg-white/[0.07]"
-        role="meter"
-        [attr.aria-valuenow]="memoryPercent()"
-        aria-valuemin="0"
-        aria-valuemax="100"
-        [attr.aria-label]="container().name + ' memory against its limit'"
-      >
+      <!-- Pinned to the card's bottom edge, so the bars line up across a grid row. -->
+      <div class="mt-auto pt-3.5">
         <div
-          class="h-full origin-left rounded-full"
-          style="background: var(--sev); transition: transform 0.9s var(--ease-out); animation: bar-in 1s var(--ease-out) backwards"
-          [style.transform]="'scaleX(' + memoryPercent()! / 100 + ')'"
-        ></div>
+          class="h-1 overflow-hidden rounded-full bg-white/[0.07]"
+          role="meter"
+          [attr.aria-valuenow]="memoryPercent()"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          [attr.aria-label]="container().name + ' memory against its limit'"
+        >
+          <div
+            class="h-full origin-left rounded-full"
+            style="background: var(--sev); transition: transform 0.9s var(--ease-out); animation: bar-in 1s var(--ease-out) backwards"
+            [style.transform]="'scaleX(' + memoryPercent()! / 100 + ')'"
+          ></div>
+        </div>
       </div>
     }
   `,

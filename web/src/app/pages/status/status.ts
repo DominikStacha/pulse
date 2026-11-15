@@ -12,6 +12,7 @@ import {
   ServiceStatus,
   Severity,
   VitalReading,
+  attentionReasons,
   containerSeverity,
   isStale,
   overallSeverity,
@@ -49,6 +50,9 @@ export class StatusPage {
   protected readonly search = signal('');
   protected readonly formatters = VITAL_FORMATTERS;
   protected readonly skeletons = [0, 1, 2, 3, 4, 5];
+  /** A stale snapshot is the last known state, not the current one: show it, but quieter. */
+  protected readonly fresh = 'transition duration-500';
+  protected readonly dimmed = 'transition duration-500 opacity-60 saturate-50';
 
   constructor() {
     const stop = this.status.startPolling();
@@ -73,6 +77,12 @@ export class StatusPage {
   );
 
   protected readonly host = computed(() => this.snapshot()?.host ?? null);
+
+  /** Why the verdict is not green, e.g. "1 collector warning". A stale snapshot explains itself. */
+  protected readonly reasons = computed(() => {
+    const s = this.snapshot();
+    return s === null || this.stale() ? '' : attentionReasons(s, this.now()).join(', ');
+  });
 
   /** Age of the data itself: the number that matters when the collector dies. */
   protected readonly dataAge = computed(() => {
@@ -135,6 +145,8 @@ export class StatusPage {
   protected formatterFor(key: string): (value: number) => string {
     return this.formatters[key] ?? ((value) => String(value));
   }
+
+  protected readonly searchTerm = computed(() => this.search().trim());
 
   protected onSearch(event: Event): void {
     this.search.set((event.target as HTMLInputElement).value);
