@@ -79,7 +79,7 @@
           <span class="num relative text-[13.5px] font-medium">{{ row.active }}</span>
         </li>
       } @empty {
-        <li class="px-2 py-3 text-sm text-faint">No sites yet.</li>
+        <li class="px-2 py-3 text-sm text-faint">{{ sitesLoaded() ? 'No sites yet.' : 'Loading sites…' }}</li>
       }
     </ul>
   </section>
@@ -89,7 +89,7 @@
     style="--i: 1"
     aria-label="Where visitors are landing"
   >
-    <div class="mb-3 flex items-center justify-between">
+    <div class="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
       <h2 class="text-[15px] font-medium text-ink">Where hits land</h2>
       <p class="text-xs text-faint">A ring appears at the visitor's country</p>
     </div>

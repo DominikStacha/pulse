@@ -55,6 +55,8 @@ export class LivePage {
       }));
   });
 
+  protected readonly sitesLoaded = computed(() => this.sites.list() !== undefined);
+
   protected readonly perSite = computed(() => {
     const counts = this.live.perSite();
     return (this.sites.list() ?? [])
