@@ -1,0 +1,15 @@
+{
+  "name": "pulse-tracker",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Pulse tracker script (plain ES2017, no build). Tests only.",
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "jsdom": "^31.0.1",
+    "vitest": "^5.1.0"
+  }
+}
