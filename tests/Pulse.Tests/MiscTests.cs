@@ -292,4 +292,30 @@ public class DemoTests
         // Synthetic visitors only: nothing but the hash of an RFC 5737 documentation address was ever involved.
         Assert.DoesNotContain(f.Logs.Lines, l => l.Contains("203.0.113."));
     }
+
+    [Fact]
+    public async Task Ingestion_has_a_global_rate_limit()
+    {
+        using var f = new PulseFactory { Settings = new() { ["Pulse:Auth:Disabled"] = "true", ["Pulse:IngestPerSecond"] = "3" } };
+        var c = f.CreateClient();
+        var codes = new List<int>();
+        for (var i = 0; i < 6; i++) codes.Add((int)(await c.PostAsync("/api/send", new StringContent(
+            """{"type":"event","payload":{"website":"WEBSITE","hostname":"stacha.tech","url":"/"}}""".Replace("WEBSITE", Ids.Stacha), System.Text.Encoding.UTF8, "application/json"))).StatusCode);
+        Assert.Contains(429, codes);
+        Assert.True(f.Db.Count("events") <= 3);
+    }
+
+    [Theory]
+    [InlineData("/")]
+    [InlineData("/api/sites")]
+    public async Task Responses_carry_security_headers(string path)
+    {
+        using var f = new PulseFactory();
+        var r = await f.CreateClient().GetAsync(path);
+        var csp = string.Join(' ', r.Headers.GetValues("Content-Security-Policy"));
+        Assert.Contains("script-src 'self';", csp);
+        Assert.Contains("frame-ancestors 'none'", csp);
+        Assert.Equal("nosniff", string.Join(' ', r.Headers.GetValues("X-Content-Type-Options")));
+        Assert.Equal("no-referrer", string.Join(' ', r.Headers.GetValues("Referrer-Policy")));
+    }
 }

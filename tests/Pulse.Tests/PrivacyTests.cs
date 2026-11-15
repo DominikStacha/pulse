@@ -75,6 +75,10 @@ public class PrivacyTests
         Assert.Equal(1, f.Db.Count("salts"));
         var v = f.Db.Events().Select(e => e.Visitor).ToArray();
         Assert.NotEqual(v[0], v[1]); // same person, new month: not linkable
+
+        // secure_delete + checkpoint: the old salt's bytes are not left behind in the database or its WAL.
+        foreach (var file in new[] { f.DbPath, f.DbPath + "-wal" }.Where(File.Exists))
+            Assert.Equal(-1, File.ReadAllBytes(file).AsSpan().IndexOf(october.Salt));
     }
 
     [Fact]

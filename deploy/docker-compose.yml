@@ -5,8 +5,12 @@ services:
     image: pulse:latest
     container_name: pulse
     restart: unless-stopped
-    # domin, so the bind-mounted ./data stays writable without chown games.
+    # domin, so the bind-mounted ./data (mode 700) stays writable without chown games.
     user: "1000:1000"
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
     env_file: .env            # PULSE_ACCESS_TEAM_DOMAIN, PULSE_ACCESS_AUD
     environment:
       ASPNETCORE_ENVIRONMENT: Production

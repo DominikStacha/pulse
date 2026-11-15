@@ -62,6 +62,7 @@ public sealed class Db
         var c = new SqliteConnection(_connectionString);
         c.Open();
         c.Execute("PRAGMA synchronous=NORMAL"); // safe with WAL, avoids an fsync per hit
+        c.Execute("PRAGMA secure_delete=ON"); // deleted salts and expired events are overwritten, not left in free pages
         return c;
     }
 }
@@ -82,7 +83,8 @@ public sealed class Salts(Db db, TimeProvider clock)
             if (_current is { } c2 && c2.Month == month) return c2.Salt;
             using var conn = db.Open();
             conn.Execute("INSERT OR IGNORE INTO salts(month, salt) VALUES (@month, @salt)", new { month, salt = RandomNumberGenerator.GetBytes(32) });
-            conn.Execute("DELETE FROM salts WHERE month <> @month", new { month });
+            if (conn.Execute("DELETE FROM salts WHERE month <> @month", new { month }) > 0)
+                conn.Execute("PRAGMA wal_checkpoint(TRUNCATE)"); // old salt gone from the WAL too, so old ids can't be recomputed
             var salt = conn.ExecuteScalar<byte[]>("SELECT salt FROM salts WHERE month = @month", new { month })!;
             _current = new Current(month, salt);
             return salt;
@@ -105,7 +107,9 @@ public sealed class Retention(Db db, TimeProvider clock, ILogger<Retention> log)
     public static int Run(Db db, DateTimeOffset now)
     {
         using var c = db.Open();
-        return c.Execute("DELETE FROM events WHERE ts < @cutoff", new { cutoff = now.AddMonths(-Months).ToUnixTimeMilliseconds() });
+        var deleted = c.Execute("DELETE FROM events WHERE ts < @cutoff", new { cutoff = now.AddMonths(-Months).ToUnixTimeMilliseconds() });
+        if (deleted > 0) c.Execute("PRAGMA wal_checkpoint(TRUNCATE)");
+        return deleted;
     }
 
     protected override async Task ExecuteAsync(CancellationToken ct)

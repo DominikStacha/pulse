@@ -50,6 +50,16 @@ public static class Ingest
     public static void MapIngest(this WebApplication app) =>
         app.MapMethods("/api/send", ["POST", "OPTIONS"], async (HttpContext ctx, Db db, Events events) =>
         {
+            try { return await Handle(ctx, db, events); }
+            catch (BadInput) { return Err(400, "invalid json"); }
+        }).RequireRateLimiting(RateLimit);
+
+    /// <summary>Global cap on stored hits, on top of nginx's per-IP limit (IPv6 rotation, LAN). Real traffic is far below it.</summary>
+    public const string RateLimit = "ingest";
+
+    static async Task<IResult> Handle(HttpContext ctx, Db db, Events events)
+    {
+        {
             var res = ctx.Response;
             res.Headers.AccessControlAllowOrigin = "*"; // no credentials, ever
             if (HttpMethods.IsOptions(ctx.Request.Method))
@@ -90,24 +100,28 @@ public static class Ingest
             var screen = Cut(Str(p, "screen"), 20);
             var (browser, os, device) = Ua.Parse(ua, screen);
             var name = Cut(Str(p, "name")?.Trim(), 50);
-            string? data = null;
-            if (p.TryGetProperty("data", out var d) && d.ValueKind == JsonValueKind.Object)
-            {
-                var raw = d.GetRawText();
-                if (Encoding.UTF8.GetByteCount(raw) <= 2048) data = raw; // larger: drop the data, keep the event
-            }
 
+            // Page titles and event data are not stored: nothing reads them, and titles can carry
+            // search terms or names ("Results for …"), which the path-only promise keeps out.
             events.Store(new NewEvent(
-                    website, name, PathOf(Str(p, "url")), Cut(Str(p, "title"), 200), RefHost(Str(p, "referrer"), host),
+                    website, name, PathOf(Str(p, "url")), null, RefHost(Str(p, "referrer"), host),
                     Countries.FromHeader(ctx.Request.Headers["CF-IPCountry"].ToString()),
-                    browser, os, device, screen, Cut(Str(p, "language"), 35), data),
+                    browser, os, device, screen, Cut(Str(p, "language"), 35), null),
                 ClientIp(ctx), ua);
             return Results.Json(new { ok = true });
-        });
+        }
+    }
 
     static IResult Err(int status, string error) => Results.Json(new { error }, statusCode: status);
 
-    static string? Str(JsonElement o, string name) => o.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+    static string? Str(JsonElement o, string name)
+    {
+        if (!o.TryGetProperty(name, out var v) || v.ValueKind != JsonValueKind.String) return null;
+        try { return v.GetString(); }
+        catch (InvalidOperationException) { throw new BadInput(); } // lone surrogate / invalid UTF-8
+    }
+
+    sealed class BadInput : Exception;
 
     /// <summary>Truncates to max chars (never inside a surrogate pair); empty becomes null.</summary>
     public static string? Cut(string? s, int max)

@@ -33,7 +33,7 @@ public class IngestTests
         Assert.Null(e.Name);
         Assert.Equal("/blog/x", e.Path);
         Assert.Equal("google.com", e.Referrer);
-        Assert.Equal("Hello", e.Title);
+        Assert.Null(e.Title); // titles are never stored (they can carry search terms or names)
         Assert.Equal("CZ", e.Country);
         Assert.Equal(("Chrome", "Windows", "desktop"), (e.Browser, e.Os, e.Device));
         Assert.Equal("1440x900", e.Screen);
@@ -42,7 +42,7 @@ public class IngestTests
     }
 
     [Fact]
-    public async Task A_custom_event_has_kind_2_a_truncated_name_and_its_data()
+    public async Task A_custom_event_has_kind_2_and_a_truncated_name_but_no_data()
     {
         var (f, c) = await Start();
         using var _ = f;
@@ -53,7 +53,7 @@ public class IngestTests
         var events = f.Db.Events();
         Assert.Equal([2L, 2L], events.Select(e => e.Kind));
         Assert.Equal("cv_download", events[0].Name);
-        Assert.Equal("""{"language":"en"}""", events[0].Data);
+        Assert.Null(events[0].Data); // event data is not stored
         Assert.Equal(50, events[1].Name!.Length);
     }
 
@@ -70,19 +70,33 @@ public class IngestTests
     }
 
     [Fact]
-    public async Task Event_data_over_2kB_is_dropped_but_the_event_is_kept_and_non_objects_are_ignored()
+    public async Task Event_data_of_any_size_or_shape_is_never_stored_but_the_event_is_kept()
     {
         var (f, c) = await Start();
         using var _ = f;
         await c.Send(TestExtensions.Pageview(extra: new { name = "big", data = new { blob = new string('x', 2100) } }));
-        await c.Send(TestExtensions.Pageview(extra: new { name = "ok", data = new { blob = new string('x', 1900) } }));
+        await c.Send(TestExtensions.Pageview(extra: new { name = "ok", data = new { email = "someone@example.com" } }));
         await c.Send(TestExtensions.Pageview(extra: new { name = "arr", data = new[] { 1, 2 } }));
 
         var events = f.Db.Events();
         Assert.Equal(3, events.Count);
-        Assert.Null(events[0].Data);
-        Assert.NotNull(events[1].Data);
-        Assert.Null(events[2].Data);
+        Assert.All(events, e => Assert.Null(e.Data));
+    }
+
+    [Theory]
+    [InlineData("url")]
+    [InlineData("website")]
+    [InlineData("hostname")]
+    public async Task A_lone_surrogate_in_a_string_is_a_400_not_a_500(string field)
+    {
+        var (f, c) = await Start();
+        using var _ = f;
+        var body = """{"type":"event","payload":{"website":"WEBSITE","hostname":"stacha.tech","url":"/"}}""".Replace("WEBSITE", Ids.Stacha)
+            .Replace($"\"{field}\":\"", $"\"{field}\":\"\\ud800");
+        c.DefaultRequestHeaders.UserAgent.ParseAdd(Uas.Chrome); // a browser, so the hit isn't dropped as a bot first
+        var r = await c.PostAsync("/api/send", new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
+        Assert.Equal(System.Net.HttpStatusCode.BadRequest, r.StatusCode);
+        Assert.Equal(0, f.Db.Count("events"));
     }
 
     [Fact]
@@ -93,7 +107,6 @@ public class IngestTests
         await c.Send(TestExtensions.Pageview(url: "/" + new string('p', 700), extra: new { title = new string('t', 300), language = new string('l', 50), screen = new string('s', 40) }));
         var e = Assert.Single(f.Db.Events());
         Assert.Equal(500, e.Path.Length);
-        Assert.Equal(200, e.Title!.Length);
         Assert.Equal(35, e.Language!.Length);
         Assert.Equal(20, e.Screen!.Length);
     }

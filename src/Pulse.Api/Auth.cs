@@ -18,6 +18,7 @@ public sealed class Access
     readonly long _cooldownMs;
     volatile JsonWebKey[] _keys = [];
     long _fetchedAt; // unix ms of the last fetch attempt, 0 = never
+    const long MaxKeyAgeMs = 3_600_000; // trust fetched keys for an hour, then refetch (Cloudflare rotation / revocation)
 
     public string? Host { get; }
     public string? Audience { get; }
@@ -62,7 +63,8 @@ public sealed class Access
     async Task<JsonWebKey?> FindKey(string? kid, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(kid)) return null;
-        if (_keys.FirstOrDefault(k => k.Kid == kid) is { } known) return known;
+        var fresh = _clock.GetUtcNow().ToUnixTimeMilliseconds() - _fetchedAt < MaxKeyAgeMs;
+        if (fresh && _keys.FirstOrDefault(k => k.Kid == kid) is { } known) return known;
         await RefreshKeys(ct);
         return _keys.FirstOrDefault(k => k.Kid == kid);
     }

@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.RateLimiting;
 using Dapper;
 using Pulse.Api;
 
@@ -26,6 +27,13 @@ builder.Services.AddSingleton<Events>();
 builder.Services.AddSingleton<Access>();
 builder.Services.AddHttpClient("jwks", c => c.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.AddHostedService<Retention>();
+builder.Services.AddRateLimiter(o =>
+{
+    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    var perSecond = builder.Configuration.GetValue("Pulse:IngestPerSecond", 30);
+    // ponytail: one global window for all sites; per-site limits if one noisy site ever starves the others.
+    o.AddFixedWindowLimiter(Ingest.RateLimit, w => { w.PermitLimit = perSecond; w.Window = TimeSpan.FromSeconds(1); w.QueueLimit = 0; });
+});
 var demo = args.Length > 0 && args[0] == "seed-demo";
 if (demo && args.Contains("--live")) builder.Services.AddHostedService<Demo.Live>();
 
@@ -50,6 +58,18 @@ if (demo)
     if (days > 0) Demo.Seed(db, app.Services.GetRequiredService<TimeProvider>(), days, args.Contains("--reset"));
     if (!live) return;
 }
+
+// Defence in depth for the dashboard (no XSS sink is known): no inline script, no framing, favicons from https only.
+app.Use(async (ctx, next) =>
+{
+    var h = ctx.Response.Headers;
+    h.ContentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; " +
+                              "font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'";
+    h.XContentTypeOptions = "nosniff";
+    h["Referrer-Policy"] = "no-referrer";
+    await next();
+});
+app.UseRateLimiter();
 
 // --- dashboard API: Cloudflare Access JWT, except the public ingestion endpoint ---
 app.Use(async (ctx, next) =>
