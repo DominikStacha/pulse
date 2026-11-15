@@ -59,6 +59,16 @@ public class IconTests
     [InlineData("fe80::1", false)]
     [InlineData("fd00::1", false)]
     [InlineData("::ffff:192.168.1.1", false)]
+    [InlineData("64:ff9b::c0a8:105", false)]   // NAT64 of 192.168.1.5
+    [InlineData("::c0a8:105", false)]          // IPv4-compatible
+    [InlineData("2002:c0a8:105::1", false)]    // 6to4
+    [InlineData("2001:0:4136:e378::1", false)] // Teredo
+    [InlineData("2001:db8::1", false)]
+    [InlineData("198.18.0.1", false)]
+    [InlineData("192.0.2.1", false)]
+    [InlineData("192.0.0.8", false)]
+    [InlineData("198.51.100.7", false)]
+    [InlineData("203.0.113.9", false)]
     [InlineData("172.32.0.1", true)]
     [InlineData("104.21.5.9", true)]
     [InlineData("2606:4700::6810:84e5", true)]
