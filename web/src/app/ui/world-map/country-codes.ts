@@ -5,3 +5,13 @@ const PAIRS =
 export const NUMERIC_TO_ALPHA2: Readonly<Record<string, string>> = Object.fromEntries(
   PAIRS.split(' ').map((p) => p.split(':') as [string, string]),
 );
+
+/** world-atlas draws these as separate features, without an ISO numeric id. They belong to a country the API reports. */
+export const PART_OF: Readonly<Record<string, string>> = { 'N. Cyprus': 'CY', Somaliland: 'SO' };
+
+/** ISO-2 of a world-atlas feature, or undefined if it is not a country we know. */
+export function alpha2Of(id: string | number | undefined, name: string): string | undefined {
+  if (PART_OF[name]) return PART_OF[name];
+  if (name === 'Kosovo') return 'XK';
+  return id === undefined ? undefined : NUMERIC_TO_ALPHA2[String(id).padStart(3, '0')];
+}
