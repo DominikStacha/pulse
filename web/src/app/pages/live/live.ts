@@ -55,6 +55,22 @@ export class LivePage {
       }));
   });
 
+  /** Shrinks the hero number as it gains digits, so the trace beside it keeps some room. */
+  protected readonly sizeClass = computed(() => {
+    const digits = String(this.count() ?? 0).length;
+    if (digits <= 2) return 'text-[120px] sm:text-[148px]';
+    return digits === 3 ? 'text-[96px] sm:text-[116px]' : 'text-[72px] sm:text-[88px]';
+  });
+
+  /**
+   * One width for the domain column in every row (each row is its own grid, so
+   * `max-content` would not line up): as wide as the longest domain, within 11 to 16rem.
+   */
+  protected readonly domainColumn = computed(() => {
+    const longest = Math.max(0, ...this.feed().map((h) => h.domain.length));
+    return `clamp(11rem, calc(${longest}ch + 1.5rem), 16rem)`;
+  });
+
   protected readonly sitesLoaded = computed(() => this.sites.list() !== undefined);
 
   protected readonly perSite = computed(() => {
