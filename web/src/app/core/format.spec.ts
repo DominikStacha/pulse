@@ -29,6 +29,13 @@ describe('numbers', () => {
     expect(formatPercent(0.4213, 1)).toBe('42.1%');
     expect(formatPercent(undefined)).toBe('—');
   });
+
+  it('never rounds a small but real share down to 0%', () => {
+    expect(formatPercent(0)).toBe('0%');
+    expect(formatPercent(0.004)).toBe('<1%');
+    expect(formatPercent(0.0004, 1)).toBe('<0.1%');
+    expect(formatPercent(0.006)).toBe('1%');
+  });
 });
 
 describe('formatSeconds (visit length)', () => {

@@ -77,6 +77,14 @@ export class Overview {
   protected readonly events = EVENTS;
   protected readonly sites = SITES;
   protected readonly skeletons = [0, 1, 2, 3, 4];
+  /** Phones: Visitors alone, then 2 x 2. md: three over two. xl: five in a row. */
+  protected readonly spans = [
+    'col-span-2 md:col-span-2 xl:col-span-1',
+    'md:col-span-2 xl:col-span-1',
+    'md:col-span-2 xl:col-span-1',
+    'md:col-span-3 xl:col-span-1',
+    'md:col-span-3 xl:col-span-1',
+  ];
 
   protected readonly showVisitors = signal(true);
   protected readonly showPageviews = signal(true);
@@ -142,6 +150,11 @@ export class Overview {
     ];
   });
 
+  /** Length of the longest figure in the band: every cell sizes its numbers for this many characters. */
+  protected readonly valueChars = computed(() =>
+    Math.max(4, ...(this.kpis() ?? []).map((k) => k.format(k.value).length)),
+  );
+
   protected readonly sparks = computed(() => {
     const points = this.series.data()?.points ?? [];
     const pick = (k: 'visitors' | 'visits' | 'pageviews') => points.map((p, t) => ({ t, y: p[k] }));
@@ -167,7 +180,9 @@ export class Overview {
     return (direction === 'up') === k.upIsGood ? 'good' : 'bad';
   }
 
-  protected toggle(flag: WritableSignal<boolean>): void {
+  /** Visitors and Pageviews can't both be off (an empty chart says nothing): the last one stays. */
+  protected toggle(flag: WritableSignal<boolean>, other?: WritableSignal<boolean>): void {
+    if (other && flag() && !other()) return;
     flag.update((v) => !v);
   }
 }

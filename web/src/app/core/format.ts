@@ -15,10 +15,13 @@ export function formatCompact(value: number): string {
   return compact.format(value);
 }
 
-/** 0.4213 -> "42%". */
+/** 0.4213 -> "42%". A real but tiny share reads "<1%", never a misleading "0%". */
 export function formatPercent(fraction: number | null | undefined, fractionDigits = 0): string {
   if (fraction === null || fraction === undefined || !Number.isFinite(fraction)) return EMPTY;
-  return `${(fraction * 100).toFixed(fractionDigits)}%`;
+  const text = (fraction * 100).toFixed(fractionDigits);
+  if (fraction > 0 && Number(text) === 0)
+    return `<${(10 ** -fractionDigits).toFixed(fractionDigits)}%`;
+  return `${text}%`;
 }
 
 /** Visit length: "48s", "2m 14s", "1h 05m". */

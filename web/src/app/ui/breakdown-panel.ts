@@ -14,14 +14,21 @@ export interface Tab extends Option<Dim> {}
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'panel flex flex-col p-4 sm:p-5' },
   template: `
-    <div class="mb-3 flex min-h-8 flex-wrap items-center justify-between gap-x-3 gap-y-2">
-      <h2 class="text-[15px] font-medium text-ink">{{ title() }}</h2>
+    <!-- Every panel's header is as tall as the tab control, so panels in a row line up row for row. -->
+    <div class="mb-3 flex h-9 items-center justify-between gap-2 pointer-coarse:h-11">
+      <h2 class="min-w-0 truncate text-[15px] font-medium text-ink">{{ title() }}</h2>
       @if (tabs().length > 1) {
-        <pl-segmented [options]="tabs()" [(value)]="dim" [label]="title() + ' view'" />
+        <pl-segmented
+          class="shrink-0"
+          [fit]="true"
+          [options]="tabs()"
+          [(value)]="dim"
+          [label]="title() + ' view'"
+        />
       }
     </div>
     <div
-      class="relative min-h-[18.5rem] flex-1 transition-opacity duration-300"
+      class="relative flex flex-1 flex-col transition-opacity duration-300"
       [class.opacity-50]="query.loading() && query.data()"
     >
       @if (query.data(); as data) {
@@ -39,10 +46,11 @@ export interface Tab extends Option<Dim> {}
             [showShare]="metric() === 'visitors'"
           />
         } @else {
-          <pl-state title="Nothing here yet" [message]="emptyHint()" />
+          <pl-state class="flex-1" title="Nothing here yet" [message]="emptyHint()" />
         }
       } @else if (query.error()) {
         <pl-state
+          class="flex-1"
           kind="error"
           title="Couldn't load this list"
           message="The API didn't answer. Your other panels may still be fine."
