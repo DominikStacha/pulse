@@ -11,9 +11,11 @@ import { StateMessage } from '../../ui/state-message';
 
 const DOMAIN = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 
+const SCRIPT_SRC = 'https://stacha.tech/a/script.js';
+
 /** What the tracker tag looks like for a site. Exported for the spec. */
 export function embedSnippet(siteId: string): string {
-  return `<script defer src="https://stacha.tech/a/script.js" data-website-id="${siteId}"></script>`;
+  return `<script defer src="${SCRIPT_SRC}" data-website-id="${siteId}"></script>`;
 }
 
 /** "https://Klettr.com/routes?x=1" -> "klettr.com": people paste addresses, the API wants a host. */
@@ -33,7 +35,7 @@ export function normaliseDomain(input: string): string {
 })
 export class SitesPage {
   protected readonly sites = inject(SitesService);
-  protected readonly snippet = embedSnippet;
+  protected readonly scriptSrc = SCRIPT_SRC;
   protected readonly formatNumber = formatNumber;
 
   /** Last 7 days of visitors per site, for the little count on each card. */
@@ -58,7 +60,8 @@ export class SitesPage {
   protected readonly domain = signal('');
   protected readonly touched = signal(false);
   protected readonly saving = signal(false);
-  protected readonly serverError = signal<string | null>(null);
+  /** The outcome of the last submit: one line, so a new result always replaces the old one. */
+  protected readonly message = signal<{ ok: boolean; text: string } | null>(null);
   protected readonly added = signal<Site | null>(null);
   protected readonly copied = signal<string | null>(null);
 
@@ -75,7 +78,7 @@ export class SitesPage {
   protected submit(event: Event): void {
     event.preventDefault();
     this.touched.set(true);
-    this.serverError.set(null);
+    this.message.set(null);
     if (this.nameError() || this.domainError() || this.saving()) return;
 
     this.saving.set(true);
@@ -83,13 +86,14 @@ export class SitesPage {
       next: (site) => {
         this.saving.set(false);
         this.added.set(site);
+        this.message.set({ ok: true, text: `Added ${site.name}. Copy its tag below.` });
         this.name.set('');
         this.domain.set('');
         this.touched.set(false);
       },
       error: (e: unknown) => {
         this.saving.set(false);
-        this.serverError.set(describe(e));
+        this.message.set({ ok: false, text: describe(e) });
       },
     });
   }

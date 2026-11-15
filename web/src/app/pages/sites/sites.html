@@ -12,7 +12,7 @@
     Pulse accepts visits only from this domain and its subdomains.
   </p>
   <form
-    class="grid items-start gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto]"
+    class="grid items-start gap-x-3 gap-y-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto]"
     novalidate
     (submit)="submit($event)"
   >
@@ -25,15 +25,18 @@
         autocomplete="off"
         maxlength="60"
         placeholder="Klettr"
-        class="field"
+        class="field aria-invalid:shadow-[0_0_0_3px_rgb(255_107_129/0.16)] aria-invalid:focus-visible:outline-down!"
         [value]="name()"
         (input)="onName($event)"
         [attr.aria-invalid]="touched() && nameError() ? 'true' : null"
         [attr.aria-describedby]="touched() && nameError() ? 'name-err' : null"
       />
-      @if (touched() && nameError(); as err) {
-        <p id="name-err" class="mt-1.5 text-xs text-down">{{ err }}</p>
-      }
+      <!-- The slot is always there, so an error appearing does not push the form around. -->
+      <div class="mt-1.5 min-h-4 text-xs text-down">
+        @if (touched() && nameError(); as err) {
+          <p id="name-err">{{ err }}</p>
+        }
+      </div>
     </div>
     <div>
       <label for="site-domain" class="mb-1.5 block text-[13px] text-sub">Domain</label>
@@ -46,58 +49,71 @@
         autocapitalize="off"
         spellcheck="false"
         placeholder="klettr.com"
-        class="field font-mono !text-[13px]"
+        class="field font-mono aria-invalid:shadow-[0_0_0_3px_rgb(255_107_129/0.16)] aria-invalid:focus-visible:outline-down!"
         [value]="domain()"
         (input)="onDomain($event)"
         [attr.aria-invalid]="touched() && domainError() ? 'true' : null"
         [attr.aria-describedby]="touched() && domainError() ? 'domain-err' : null"
       />
-      @if (touched() && domainError(); as err) {
-        <p id="domain-err" class="mt-1.5 text-xs text-down">{{ err }}</p>
-      }
+      <div class="mt-1.5 min-h-4 text-xs text-down">
+        @if (touched() && domainError(); as err) {
+          <p id="domain-err">{{ err }}</p>
+        }
+      </div>
     </div>
     <button
       type="submit"
-      class="mt-0 inline-flex h-[38px] items-center justify-center gap-2 rounded-xl bg-sodium px-4 text-[13.5px] font-semibold text-[#1b1103] transition hover:brightness-110 disabled:opacity-60 sm:mt-[26px]"
+      class="inline-flex h-[38px] items-center justify-center gap-2 rounded-xl bg-sodium px-4 text-[13.5px] font-semibold text-[#1b1103] transition hover:brightness-110 disabled:opacity-60 pointer-coarse:h-11 sm:mt-[26px]"
       [disabled]="saving()"
     >
       <pl-icon name="plus" [size]="16" />
       {{ saving() ? 'Adding…' : 'Add site' }}
     </button>
   </form>
-  @if (serverError(); as err) {
-    <p class="mt-3 text-sm text-down" role="alert">{{ err }}</p>
-  }
-  @if (added(); as site) {
-    <p class="mt-3 flex items-center gap-2 text-sm text-mint" role="status">
-      <pl-icon name="check" [size]="16" /> Added {{ site.name }}. Copy its tag below.
-    </p>
-  }
+  <!-- One line for the outcome, reserved up front. A new result replaces the old one. -->
+  <div class="mt-1 min-h-5 text-sm" aria-live="polite">
+    @if (message(); as m) {
+      @if (m.ok) {
+        <p class="flex items-start gap-2 text-mint">
+          <pl-icon name="check" [size]="16" class="mt-0.5 shrink-0" />
+          <span>{{ m.text }}</span>
+        </p>
+      } @else {
+        <p class="text-down" role="alert">{{ m.text }}</p>
+      }
+    }
+  </div>
 </section>
 
 @if (ordered(); as list) {
   @if (list.length) {
-    <ul class="grid grid-cols-1 gap-4 xl:grid-cols-2" aria-label="Sites">
+    <ul class="grid grid-cols-1 gap-4 lg:grid-cols-2" aria-label="Sites">
       @for (site of list; track site.id; let i = $index) {
         <li
           class="panel rise p-4 sm:p-5"
           [style.--i]="i + 1"
           [class]="added()?.id === site.id ? 'ring-1 ring-sodium/60' : ''"
         >
-          <div class="flex items-start gap-3.5">
+          <!-- Phones: the visitor count drops to its own row under the name, so name and domain get the width. -->
+          <div
+            class="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3.5 gap-y-3 sm:grid-cols-[auto_minmax(0,1fr)_auto]"
+          >
             <pl-site-icon [domain]="site.domain" [size]="38" />
-            <div class="min-w-0 flex-1">
-              <h3 class="truncate text-[16px] font-medium">{{ site.name }}</h3>
+            <div class="min-w-0">
+              <h3 class="line-clamp-2 break-words text-[16px] font-medium" [title]="site.name">
+                {{ site.name }}
+              </h3>
               <a
                 [href]="'https://' + site.domain"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="block truncate text-[13px] text-sub underline decoration-line underline-offset-4 transition-colors hover:text-ink hover:decoration-sub"
+                class="line-clamp-2 break-all text-[13px] text-sub underline decoration-line underline-offset-4 transition-colors hover:text-ink hover:decoration-sub"
+                [title]="site.domain"
                 >{{ site.domain }}</a
               >
             </div>
             <a
-              class="chip shrink-0 py-1 text-[12.5px]"
+              class="chip relative col-start-2 justify-self-start py-1 text-[12.5px] after:absolute after:-inset-2 after:content-[''] sm:col-start-3 sm:justify-self-end"
               routerLink="/"
               [queryParams]="{ site: site.id }"
             >
@@ -110,10 +126,12 @@
 
           <div class="mt-4 overflow-hidden rounded-xl border border-line bg-black/30">
             <div class="flex items-center justify-between border-b border-line/70 px-3 py-1.5">
-              <span class="text-xs text-faint">Tracker tag for the head of every page</span>
+              <span class="text-xs text-faint"
+                >Tracker tag<span class="hidden sm:inline"> for the head of every page</span></span
+              >
               <button
                 type="button"
-                class="chip gap-1.5 !border-transparent !bg-white/[0.06] px-2.5 py-1 text-xs"
+                class="chip min-w-[5.5rem] justify-center gap-1.5 !border-transparent !bg-white/[0.06] px-2.5 py-1 text-xs pointer-coarse:min-h-11"
                 (click)="copy(site)"
                 [attr.aria-label]="'Copy tracker tag for ' + site.name"
               >
@@ -125,9 +143,11 @@
                 {{ copied() === site.id ? 'Copied' : 'Copy' }}
               </button>
             </div>
+            <!-- Shown with data-website-id on its own line; the text is still the one-line tag (embedSnippet).
+                 The id never breaks: on a narrow card it moves down whole. -->
             <pre
-              class="select-all overflow-x-auto whitespace-pre-wrap [overflow-wrap:anywhere] px-3 py-3 font-mono text-[12px] leading-relaxed text-sub"
-            ><code>{{ snippet(site.id) }}</code></pre>
+              class="select-all overflow-x-auto whitespace-normal px-3 py-3 font-mono text-[11.5px] leading-relaxed text-sub [overflow-wrap:anywhere] sm:text-[12px]"
+            ><code><span class="block">&lt;script defer src="{{ scriptSrc }}"</span> <span class="block"><span class="whitespace-nowrap">data-website-id=</span><wbr><span class="whitespace-nowrap">"{{ site.id }}"</span><wbr><span class="whitespace-nowrap">&gt;&lt;/script&gt;</span></span></code></pre>
           </div>
           <p class="mt-3 text-xs text-faint">Added {{ created(site) }}</p>
         </li>
@@ -152,7 +172,7 @@
     />
   </div>
 } @else {
-  <div class="grid grid-cols-1 gap-4 xl:grid-cols-2" aria-busy="true">
+  <div class="grid grid-cols-1 gap-4 lg:grid-cols-2" aria-busy="true">
     @for (n of [0, 1]; track n) {
       <div class="panel p-5">
         <div class="skeleton h-10 w-48"></div>

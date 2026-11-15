@@ -86,4 +86,36 @@ describe('SitesPage', () => {
     fixture.detectChanges();
     expect(el.textContent).toContain('already exists');
   });
+
+  it('shows the outcome on one line: a new error replaces the old success', async () => {
+    const { el, http, fixture, submit, type } = await setup();
+    type('site-name', 'Shop');
+    type('site-domain', 'shop.example.com');
+    await submit();
+    http
+      .expectOne((r) => r.method === 'POST')
+      .flush({
+        id: 's2',
+        name: 'Shop',
+        domain: 'shop.example.com',
+        createdAt: '2026-11-14T10:00:00Z',
+      });
+    // The service reloads the list after an add; that request stays pending, so no whenStable().
+    fixture.detectChanges();
+    expect(el.querySelector('[aria-live="polite"]')?.textContent).toContain('Added Shop.');
+
+    type('site-name', 'Again');
+    type('site-domain', 'not a domain');
+    el.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+    fixture.detectChanges();
+    expect(el.textContent).not.toContain('Added Shop.');
+    expect(el.querySelector('#site-domain')?.getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('keeps the shown tag the same text as the copied one', async () => {
+    const { el } = await setup();
+    // data-website-id is on its own line on screen, but the text stays the one-line tag.
+    expect(el.querySelector('code')?.textContent).toBe(embedSnippet('s1'));
+    expect(el.querySelectorAll('code .block').length).toBe(2);
+  });
 });
