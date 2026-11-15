@@ -1,0 +1,189 @@
+.ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: ring 2.4s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+.ring-2 {
+  animation-delay: 0.5s;
+}
+/* Borders stay hairlines at any zoom. */
+.ns {
+  vector-effect: non-scaling-stroke;
+}
+.halo {
+  mix-blend-mode: screen;
+  transition: opacity 0.25s;
+}
+.core {
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.core.on {
+  opacity: 1;
+}
+/* Hovered country: a light outline on top of its neighbours' borders; sodium would vanish on a lit country. */
+.country-hover {
+  fill: rgb(255 255 255 / 0.08);
+  stroke: var(--color-ink);
+  stroke-width: 1.75px;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 3px rgb(255 166 61 / 0.9));
+}
+
+.frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1rem;
+  user-select: none;
+}
+/* the global focus ring would square the corners off */
+.frame:focus-visible {
+  border-radius: 1rem;
+}
+svg.grab {
+  cursor: grab;
+}
+svg.grabbing {
+  cursor: grabbing;
+}
+/* Frame line that appears once the map is zoomed and its content reaches the edges. */
+.edge,
+.hint {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+}
+.edge {
+  border-radius: 1rem;
+  box-shadow: inset 0 0 0 1px var(--color-line);
+  transition: opacity 0.3s;
+}
+.hint {
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  text-align: center;
+  background: color-mix(in oklab, var(--color-bg) 55%, transparent);
+  transition: opacity 0.2s;
+}
+.hint span {
+  border: 1px solid var(--color-line);
+  border-radius: 0.5rem;
+  padding: 0.375rem 0.75rem;
+  background: color-mix(in oklab, var(--color-raised) 90%, transparent);
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.25);
+}
+.edge.on,
+.hint.on {
+  opacity: 1;
+}
+
+/* Zoom buttons: small glass chips in the corner. */
+.ctls {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.ctl {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-ink);
+}
+.ctl:focus-visible {
+  outline: none;
+}
+.btn-face {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid color-mix(in oklab, var(--color-line), white 14%);
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--color-raised) 82%, transparent);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08);
+  backdrop-filter: blur(12px);
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    transform 0.15s;
+}
+.ctl:hover .btn-face {
+  border-color: color-mix(in oklab, var(--color-sodium) 70%, transparent);
+  background: color-mix(in oklab, var(--color-raised) 95%, white 5%);
+}
+.ctl:active .btn-face {
+  transform: scale(0.94);
+}
+.ctl:focus-visible .btn-face {
+  outline: 2px solid var(--color-sodium);
+  outline-offset: 2px;
+}
+/* Dimmed only when it really cannot do anything, e.g. zoom out at 1x. */
+.ctl[aria-disabled='true'] {
+  cursor: default;
+  color: var(--color-faint);
+}
+.ctl[aria-disabled='true'] .btn-face {
+  opacity: 0.45;
+  border-color: var(--color-line);
+  background: color-mix(in oklab, var(--color-raised) 60%, transparent);
+  transform: none;
+}
+
+.scale-key {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--color-line);
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--color-raised) 75%, transparent);
+  backdrop-filter: blur(12px);
+  color: var(--color-sub);
+  font-size: 11px;
+  line-height: 1;
+  pointer-events: none;
+}
+.scale-key i {
+  width: 1.25rem;
+  height: 0.5rem;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
+}
+.scale-key span:first-child {
+  margin-right: 0.125rem;
+}
+.scale-key span:last-child {
+  margin-left: 0.125rem;
+}
+/* Fingers: a 44px target around the same small chip, in a row at the bottom-left corner
+   (the emptiest one) so the buttons do not sit over the land. */
+@media (pointer: coarse) {
+  .ctls {
+    top: auto;
+    right: auto;
+    bottom: 0;
+    left: 0;
+    flex-direction: row;
+    gap: 0;
+  }
+  .ctl {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+}
