@@ -19,20 +19,26 @@ public sealed class Events(Db db, Salts salts, LiveHub hub, TimeProvider clock)
     public const long VisitGapMs = 30 * 60 * 1000;
 
     sealed class Last { public long Visit { get; set; } public long Ts { get; set; } }
+    readonly Lock _write = new();
 
     public void Store(NewEvent e, string ip, string userAgent)
     {
         var now = clock.GetUtcNow().ToUnixTimeMilliseconds();
         var visitor = salts.Visitor(e.SiteId, ip, userAgent);
-        using var c = db.Open();
-        var last = c.QueryFirstOrDefault<Last>(
-            "SELECT visit AS Visit, ts AS Ts FROM events WHERE site_id = @SiteId AND visitor = @visitor ORDER BY ts DESC LIMIT 1", new { e.SiteId, visitor });
-        var visit = last is not null && now - last.Ts < VisitGapMs ? last.Visit : Random.Shared.NextInt64();
         var kind = e.Name is null ? 1 : 2;
-        c.Execute("""
-            INSERT INTO events(site_id, ts, visitor, visit, kind, name, path, title, referrer, country, browser, os, device, screen, language, data)
-            VALUES (@SiteId, @now, @visitor, @visit, @kind, @Name, @Path, @Title, @Referrer, @Country, @Browser, @Os, @Device, @Screen, @Language, @Data)
-            """, new { e.SiteId, now, visitor, visit, kind, e.Name, e.Path, e.Title, e.Referrer, e.Country, e.Browser, e.Os, e.Device, e.Screen, e.Language, e.Data });
+        // Look-up and insert are one step: a pageview and an event fired together by one page must land in the same visit.
+        // ponytail: one lock for all writers (SQLite has a single writer anyway); shard by visitor if ingest ever outgrows it.
+        lock (_write)
+        {
+            using var c = db.Open();
+            var last = c.QueryFirstOrDefault<Last>(
+                "SELECT visit AS Visit, ts AS Ts FROM events WHERE site_id = @SiteId AND visitor = @visitor ORDER BY ts DESC LIMIT 1", new { e.SiteId, visitor });
+            var visit = last is not null && now - last.Ts < VisitGapMs ? last.Visit : Random.Shared.NextInt64();
+            c.Execute("""
+                INSERT INTO events(site_id, ts, visitor, visit, kind, name, path, title, referrer, country, browser, os, device, screen, language, data)
+                VALUES (@SiteId, @now, @visitor, @visit, @kind, @Name, @Path, @Title, @Referrer, @Country, @Browser, @Os, @Device, @Screen, @Language, @Data)
+                """, new { e.SiteId, now, visitor, visit, kind, e.Name, e.Path, e.Title, e.Referrer, e.Country, e.Browser, e.Os, e.Device, e.Screen, e.Language, e.Data });
+        }
         hub.Publish(new LiveEvent(e.SiteId, Iso.Utc(now), kind == 1 ? "pageview" : "event", e.Name, e.Path, e.Country, e.Browser, e.Os, e.Device, e.Referrer));
     }
 }

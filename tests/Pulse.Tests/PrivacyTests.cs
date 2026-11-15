@@ -119,6 +119,23 @@ public class PrivacyTests
     }
 
     [Fact]
+    public async Task Hits_that_arrive_at_the_same_moment_from_one_visitor_share_one_visit()
+    {
+        using var f = new PulseFactory();
+        var c = f.CreateClient();
+        await c.GetAsync("/healthz");
+        // A page that fires a pageview, a custom event and an SPA pageview in the same millisecond.
+        var sends = Enumerable.Range(0, 30).Select(i => Task.Run(() =>
+            c.Send(TestExtensions.Pageview(url: "/p" + i), Uas.Chrome, ("CF-Connecting-IP", "198.51.100.77"))));
+        await Task.WhenAll(sends);
+
+        var e = f.Db.Events();
+        Assert.Equal(30, e.Count);
+        Assert.Single(e.Select(x => x.Visitor).Distinct());
+        Assert.Single(e.Select(x => x.Visit).Distinct());
+    }
+
+    [Fact]
     public async Task Visits_are_per_visitor_and_per_site()
     {
         using var f = new PulseFactory();
