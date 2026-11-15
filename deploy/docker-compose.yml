@@ -19,11 +19,9 @@ services:
     volumes:
       - ./data:/data
       - /home/domin/pi-status:/status:ro
-    networks:
-      stachatech_default:
-        # Transitional: stacha.tech's nginx (/a/script.js, /a/api/send) still
-        # addresses analytics-umami:3000. Drop this alias once it points at `pulse`.
-        aliases: [analytics-umami]
+    # stacha.tech's nginx (/a/script.js, /a/api/send) and the stats.stacha.tech
+    # tunnel rule reach this container as pulse:3000 on that network.
+    networks: [stachatech_default]
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }

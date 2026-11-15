@@ -47,7 +47,7 @@ site page ── <script src="https://stacha.tech/a/script.js" data-website-id=�
 stacha-tech-web nginx (exact-match /a/script.js, /a/api/send; rate limit 10 r/s/IP, 16 kB)
    │  proxy_pass http://analytics-umami:3000/{script.js,api/send}
    ▼                                       (Docker DNS, resolver re-resolves every 30 s)
-pulse container  ── network alias `analytics-umami` on `stachatech_default`, port 3000
+pulse container  ── on `stachatech_default`, port 3000 (nginx and the tunnel use pulse:3000)
    ├─ ASP.NET Core 11 minimal API + static Angular SPA (wwwroot)
    ├─ SQLite /data/pulse.db (WAL)
    └─ /status (bind mount ~/pi-status, read-only): status.json, history.json
@@ -61,6 +61,10 @@ address `analytics-umami:3000`. Pulse joins `stachatech_default` with that alias
 listens on 3000; stopping the Umami container moves the name. Rollback = stop pulse,
 start `analytics-umami`. Later, stacha.tech's nginx and the tunnel rule get renamed to
 `pulse` and the alias goes away.
+
+> **Outcome (2026-11-15):** done as planned. The tunnel rule and stacha.tech's nginx now
+> address `pulse:3000` (nginx without access logs for `/a/`), the alias is gone, and Umami
+> was removed from the Pi completely. The diagram above shows the cut-over state.
 
 ## Stack (owner handed over the "how")
 

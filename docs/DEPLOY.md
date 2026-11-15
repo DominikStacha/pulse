@@ -8,13 +8,11 @@ linux/arm64 natively) and shipped as a tarball. Data lives in `~/pulse/data/puls
 
 | From | Path | To |
 |---|---|---|
-| Sites (public) | `https://stacha.tech/a/script.js`, `/a/api/send` | stacha.tech nginx → `http://analytics-umami:3000/{script.js,api/send}` |
+| Sites (public) | `https://stacha.tech/a/script.js`, `/a/api/send` | stacha.tech nginx (no access log) → `http://pulse:3000/{script.js,api/send}` |
 | Owner | `https://stats.stacha.tech` | Cloudflare tunnel `stacha-tech` → `http://pulse:3000` (Access app "Pulse (stats.stacha.tech)") |
 
-`analytics-umami` is a **network alias** of the pulse container on `stachatech_default`, kept from
-the Umami days so stacha.tech's nginx did not have to change. To retire it: set
-`set $umami http://pulse:3000;` in stacha.tech's `nginx.conf`, deploy stacha.tech, then drop the
-alias from the compose file.
+Both reach the container by its name on the `stachatech_default` network. The old Pi dashboard
+URL `stacha.tech/status` redirects to `stats.stacha.tech/status`.
 
 ## Ship a new version
 
