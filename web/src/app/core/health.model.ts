@@ -280,12 +280,51 @@ export function isStale(snapshot: HealthSnapshot, now: number): boolean {
 /**
  * Overall badge for the page header. A stale snapshot outranks everything
  * else: if the collector is dead, every other reading on screen is fiction.
+ * Containers that are stopped on purpose (`idle`) are not a problem, so a
+ * Pi that only has those is simply healthy.
  */
 export function overallSeverity(snapshot: HealthSnapshot, now: number): Severity {
   if (isStale(snapshot, now)) return 'down';
-  return worstSeverity([
+  const worst = worstSeverity([
     hostSeverity(snapshot.host),
     ...snapshot.containers.map((container) => containerSeverity(container, now)),
     snapshot.errors.length > 0 ? 'warn' : 'ok',
   ]);
+  return worst === 'idle' ? 'ok' : worst;
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * Why the verdict is not green, in a few words each ("1 collector warning").
+ * Most urgent first; empty when everything is fine or the snapshot is stale
+ * (staleness is its own message).
+ */
+export function attentionReasons(snapshot: HealthSnapshot, now: number): string[] {
+  const reasons: string[] = [];
+  const states = snapshot.containers.map((container) => containerSeverity(container, now));
+  const down = states.filter((s) => s === 'down').length;
+  const warn = states.filter((s) => s === 'warn').length;
+  if (down) reasons.push(plural(down, 'container down', 'containers down'));
+  if (warn) reasons.push(plural(warn, 'container restarting', 'containers restarting'));
+
+  const host = snapshot.host;
+  if (host) {
+    const checks: [string, Severity | null][] = [
+      ['Disk', host.disk ? diskSeverity(host.disk) : null],
+      ['Memory', host.memory ? memorySeverity(host.memory) : null],
+      ['Temperature', host.temperatureC !== null ? temperatureSeverity(host.temperatureC) : null],
+      ['CPU load', host.load ? loadSeverity(host.load, host.cpuCount) : null],
+      ['Power', host.throttling ? throttlingSeverity(host.throttling) : null],
+    ];
+    for (const [name, severity] of checks) {
+      if (severity === 'down') reasons.push(`${name} critical`);
+      else if (severity === 'warn') reasons.push(`${name} high`);
+    }
+  }
+
+  if (snapshot.errors.length) {
+    reasons.push(plural(snapshot.errors.length, 'collector warning', 'collector warnings'));
+  }
+  return reasons;
 }

@@ -3,6 +3,7 @@ import {
   ContainerStatus,
   HealthSnapshot,
   HostVitals,
+  attentionReasons,
   containerSeverity,
   diskSeverity,
   historySeries,
@@ -365,7 +366,7 @@ describe('overallSeverity', () => {
     expect(overallSeverity(snapshot({ errors: ['docker stats: timeout'] }), NOW)).toBe('warn');
   });
 
-  it('is ok when only idle one-shot containers are present alongside healthy services', () => {
+  it('is ok (not idle) when containers are only stopped on purpose', () => {
     const idle = container({
       name: 'build-once',
       running: false,
@@ -374,6 +375,33 @@ describe('overallSeverity', () => {
       restartPolicy: 'no',
       exitCode: 0,
     });
-    expect(overallSeverity(snapshot({ containers: [container(), idle] }), NOW)).toBe('idle');
+    expect(overallSeverity(snapshot({ containers: [container(), idle] }), NOW)).toBe('ok');
+  });
+});
+
+describe('attentionReasons', () => {
+  it('is empty for a healthy Pi, even with stopped containers', () => {
+    const idle = container({ running: false, state: 'exited', restartPolicy: 'no', exitCode: 0 });
+    expect(attentionReasons(snapshot({ containers: [container(), idle] }), NOW)).toEqual([]);
+  });
+
+  it('names a collector warning with its count', () => {
+    expect(attentionReasons(snapshot({ errors: ['docker stats: timeout'] }), NOW)).toEqual([
+      '1 collector warning',
+    ]);
+    expect(attentionReasons(snapshot({ errors: ['a', 'b'] }), NOW)).toEqual([
+      '2 collector warnings',
+    ]);
+  });
+
+  it('lists the most urgent first: containers, then host, then collector', () => {
+    const reasons = attentionReasons(
+      snapshot({
+        containers: [container({ health: 'unhealthy' }), container({ state: 'restarting' })],
+        errors: ['x'],
+      }),
+      NOW,
+    );
+    expect(reasons).toEqual(['1 container down', '1 container restarting', '1 collector warning']);
   });
 });
