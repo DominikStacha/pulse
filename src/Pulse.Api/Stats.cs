@@ -16,15 +16,15 @@ public static class Iso
 public enum Bucket { Hour, Day, Month }
 
 /// <summary>
-/// A resolved period: N buckets ending with the one that contains "now", and the N buckets right before them as "previous".
-/// Starts hold N+1 UTC ms boundaries (the last one is the end of the final bucket).
+/// A resolved period: N buckets ending with the one that contains "now", and the N buckets right before them as "previous"
+/// (for "today": yesterday from midnight, so 10:00 today compares with 00:00-10:00 yesterday).
+/// Starts hold N+1 UTC ms boundaries (the last one is the end of the final bucket). PrevTo is exclusive.
 /// </summary>
-public sealed record Window(Bucket Bucket, TimeZoneInfo Tz, long NowMs, long[] Starts, long[] PrevStarts)
+public sealed record Window(Bucket Bucket, TimeZoneInfo Tz, long NowMs, long[] Starts, long[] PrevStarts, long PrevTo)
 {
     public long From => Starts[0];
     public long To => NowMs + 1; // exclusive; includes an event stored in this very millisecond
     public long PrevFrom => PrevStarts[0];
-    public long PrevTo => Starts[0];
 }
 
 public static class Periods
@@ -66,7 +66,14 @@ public static class Periods
             default:
                 return null;
         }
-        return new Window(bucket, tz, nowMs, Grid(bucket, firstLocal, firstUtc, 0, n, tz), Grid(bucket, firstLocal, firstUtc, -n, n, tz));
+        var starts = Grid(bucket, firstLocal, firstUtc, 0, n, tz);
+        if (period == "today")
+        {
+            // Same hours of yesterday, up to the same clock time (not the hours just before midnight).
+            var prevStarts = Grid(bucket, firstLocal, ToUtc(local.Date.AddDays(-1), tz), 0, n, tz);
+            return new Window(bucket, tz, nowMs, starts, prevStarts, ToUtc(local.DateTime.AddDays(-1), tz) + 1);
+        }
+        return new Window(bucket, tz, nowMs, starts, Grid(bucket, firstLocal, firstUtc, -n, n, tz), starts[0]);
     }
 
     /// <summary>Boundaries of buckets shift..shift+n-1 (n+1 values). Hours step in UTC, days/months step on the local calendar.</summary>

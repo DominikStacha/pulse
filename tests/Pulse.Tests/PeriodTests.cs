@@ -17,7 +17,6 @@ public class PeriodTests
     static TimeSpan Length(long[] starts, int i) => TimeSpan.FromMilliseconds(starts[i + 1] - starts[i]);
 
     [Theory]
-    [InlineData("today")]
     [InlineData("24h")]
     [InlineData("7d")]
     [InlineData("30d")]
@@ -118,6 +117,22 @@ public class PeriodTests
         Assert.Equal("2026-10-25T02:00:00+01:00", labels[3]);
         Assert.Equal("2026-10-25T03:00:00+01:00", labels[4]);
         Assert.Equal("2026-10-25T12:00:00+01:00", labels[13]);
+    }
+
+    [Fact]
+    public void Today_compares_with_yesterday_up_to_the_same_clock_time()
+    {
+        var w = Resolve("today", Utc(2026, 11, 14, 9, 20)); // 10:20 CET
+        Assert.Equal(w.Starts.Length, w.PrevStarts.Length);
+        Assert.Equal("2026-11-13T00:00:00+01:00", Labels(w, w.PrevStarts)[0]);
+        Assert.Equal("2026-11-13T10:00:00+01:00", Labels(w, w.PrevStarts)[10]);
+        Assert.Equal(w.PrevStarts[0], w.PrevFrom);
+        Assert.Equal(Utc(2026, 11, 13, 9, 20).ToUnixTimeMilliseconds() + 1, w.PrevTo);
+
+        // The day after the autumn switch: yesterday had 25 hours, the comparison still starts at its midnight.
+        var dst = Resolve("today", Utc(2026, 10, 26, 9)); // 10:00 CET on Monday 26 October
+        Assert.Equal("2026-10-25T00:00:00+02:00", Labels(dst, dst.PrevStarts)[0]);
+        Assert.Equal(Utc(2026, 10, 25, 9).ToUnixTimeMilliseconds() + 1, dst.PrevTo);
     }
 
     [Fact]
@@ -253,7 +268,8 @@ public class PeriodTests
         var c = f.CreateClient();
         long v = 1;
         void Add(DateTimeOffset at) => f.Db.Add(Ids.Stacha, at, v, v++);
-        Add(Utc(2026, 3, 28, 22, 59)); // 23:59 CET yesterday: previous
+        Add(Utc(2026, 3, 27, 23, 30)); // 00:30 CET yesterday: previous, first bucket
+        Add(Utc(2026, 3, 28, 22, 59)); // 23:59 CET yesterday: after 12:30, so outside "today vs yesterday so far"
         Add(Utc(2026, 3, 29, 0, 30)); // 01:30 CET
         Add(Utc(2026, 3, 29, 1, 10)); // 03:10 CEST (02:xx does not exist)
         Add(Utc(2026, 3, 29, 10, 10)); // 12:10 CEST
@@ -264,7 +280,8 @@ public class PeriodTests
         Assert.Equal(12, prev.Length);
         Assert.Equal(["2026-03-29T00:00:00+01:00", "2026-03-29T01:00:00+01:00", "2026-03-29T03:00:00+02:00"], labels[..3]);
         Assert.Equal([0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1], pv);
-        Assert.Equal(1, prev[^1]);
+        Assert.Equal(1, prev[0]);
+        Assert.Equal(1, prev.Sum());
     }
 
     [Fact]
