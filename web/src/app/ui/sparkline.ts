@@ -1,22 +1,50 @@
-import { ChangeDetectionStrategy, Component, computed, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  computed,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
 import { SparkSample, areaPath, linePath, monotonePath, sparkGeometry } from './chart-math';
 import { hostWidth } from './resize';
+import { touchHold } from './touch-hold';
 
 let nextId = 0;
 
-/** A small line with a soft fill. Optionally hoverable, for the 24 h history on the status page. */
+/** A `t` above this is unix seconds (it is September 2001); anything smaller is just an index. */
+const EPOCH_SECONDS = 1e9;
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * A small line with a soft fill. Optionally inspectable, for the 24 h history on the status
+ * page: hover or touch, or focus it and use the arrow keys. When the samples carry unix
+ * seconds and the window crosses midnight, the tooltip also names the day.
+ */
 @Component({
   selector: 'pl-sparkline',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'relative block', '[style.height.px]': 'height()' },
+  host: {
+    class: 'relative block rounded-md outline-offset-4',
+    '[style.height.px]': 'height()',
+    '[attr.tabindex]': 'interactive() ? 0 : null',
+    '[attr.role]': "interactive() ? 'group' : null",
+    '[attr.aria-label]': "interactive() ? label() + '. Use arrow keys to inspect.' : null",
+    '(keydown)': 'key($event)',
+    '(blur)': 'hover.set(null)',
+    '(document:pointerdown)': 'outside($event)',
+  },
   template: `
     @if (width() > 0) {
       <svg
         class="absolute inset-0 overflow-visible"
         [attr.width]="width()"
         [attr.height]="height()"
-        role="img"
-        [attr.aria-label]="label()"
+        [attr.role]="interactive() ? null : 'img'"
+        [attr.aria-label]="interactive() ? null : label()"
+        [attr.aria-hidden]="interactive() ? true : null"
       >
         <defs>
           <linearGradient [attr.id]="gradientId" x1="0" y1="0" x2="0" y2="1">
@@ -48,8 +76,10 @@ let nextId = 0;
         <div
           class="absolute inset-0 cursor-crosshair touch-pan-y"
           (pointermove)="move($event)"
-          (pointerleave)="hover.set(null)"
           (pointerdown)="move($event)"
+          (pointerup)="hold.lift($event)"
+          (pointerleave)="hold.leave($event)"
+          (pointercancel)="hold.cancel()"
         ></div>
         @if (marker(); as m) {
           <span
@@ -59,12 +89,16 @@ let nextId = 0;
             [style.background]="color()"
           ></span>
           <span
-            class="num pointer-events-none absolute bottom-full z-10 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-md border border-line bg-raised px-2 py-1 text-xs text-ink shadow-lg"
+            class="num pointer-events-none absolute bottom-full z-10 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-line bg-raised px-2 py-1 text-center text-xs text-ink shadow-lg"
             [style.left.px]="m.tipLeft"
           >
+            @if (m.day) {
+              <span class="block text-faint">{{ m.day }}</span>
+            }
             {{ m.tip }}
           </span>
         }
+        <p class="sr-only" aria-live="polite">{{ liveText() }}</p>
       }
     }
   `,
@@ -81,9 +115,11 @@ export class Sparkline {
   /** Tooltip text for the sample at this index of `samples`. */
   readonly tip = input<(index: number) => string>(() => '');
 
+  private readonly el = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   protected readonly gradientId = `spark-${nextId++}`;
   protected readonly width = hostWidth();
   protected readonly hover = signal<number | null>(null);
+  protected readonly hold = touchHold(() => this.hover.set(null));
 
   private readonly geometry = computed(() =>
     sparkGeometry(this.samples(), {
@@ -101,18 +137,39 @@ export class Sparkline {
     }),
   );
 
+  /** Unix-seconds samples whose window spans two calendar days (local time). */
+  private readonly crossesMidnight = computed(() => {
+    const list = this.samples();
+    if (list.length < 2 || list[0].t < EPOCH_SECONDS) return false;
+    return (
+      new Date(list[0].t * 1000).toDateString() !==
+      new Date(list[list.length - 1].t * 1000).toDateString()
+    );
+  });
+
   protected readonly marker = computed(() => {
     const i = this.hover();
     const plotted = this.geometry().plotted;
     if (i === null || plotted.length === 0) return null;
     const p = plotted[Math.min(plotted.length - 1, Math.max(0, i))];
     const w = this.width();
+    const t = this.samples()[p.index]?.t ?? 0;
+    const d = new Date(t * 1000);
     return {
       x: p.x,
       y: p.y,
       tip: this.tip()(p.index),
-      tipLeft: Math.min(w - 40, Math.max(40, p.x)),
+      day: this.crossesMidnight()
+        ? `${WEEKDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`
+        : '',
+      // The pill is about 110px wide and centred on the point; keep both ends inside.
+      tipLeft: Math.min(w - 56, Math.max(56, p.x)),
     };
+  });
+
+  protected readonly liveText = computed(() => {
+    const m = this.marker();
+    return m ? [m.day, m.tip].filter(Boolean).join(', ') : '';
   });
 
   protected move(event: PointerEvent): void {
@@ -120,6 +177,30 @@ export class Sparkline {
     const count = this.geometry().plotted.length;
     if (rect.width <= 0 || count === 0) return;
     const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+    this.hold.keep();
     this.hover.set(Math.round(ratio * (count - 1)));
+  }
+
+  /** A touch readout stays after the finger lifts; tapping anywhere else puts it away. */
+  protected outside(event: PointerEvent): void {
+    if (this.hover() !== null && !this.el.contains(event.target as Node)) this.hold.cancel();
+  }
+
+  protected key(event: KeyboardEvent): void {
+    const count = this.geometry().plotted.length;
+    if (!this.interactive() || count === 0) return;
+    const at = this.hover();
+    const moves: Record<string, number> = {
+      ArrowLeft: at === null ? count - 1 : Math.max(0, at - 1),
+      ArrowRight: at === null ? count - 1 : Math.min(count - 1, at + 1),
+      Home: 0,
+      End: count - 1,
+    };
+    if (event.key === 'Escape') this.hover.set(null);
+    else if (event.key in moves) {
+      event.preventDefault();
+      this.hold.keep();
+      this.hover.set(moves[event.key]);
+    }
   }
 }

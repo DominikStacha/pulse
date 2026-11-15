@@ -13,8 +13,15 @@ import { formatCompact, formatNumber } from '../core/format';
 import { axisLabel, tooltipLabel } from '../core/period';
 import { Pt, areaPath, monotonePath, nearestIndex, niceScale, scaleLinear } from './chart-math';
 import { hostWidth } from './resize';
+import { touchHold } from './touch-hold';
 
 const PHONE = 520;
+/** Tooltip box (w-44) and how far it sits from the crosshair; a finger needs more room than a mouse. */
+const TIP_W = 176;
+const TIP_GAP = 14;
+const TIP_GAP_TOUCH = 36;
+/** Space between a touch point and the tooltip floating above it. */
+const FINGER = 28;
 
 /**
  * Visitors + pageviews over time, with the previous period as a ghost line,
@@ -31,6 +38,7 @@ const PHONE = 520;
     '[attr.aria-label]': 'summary()',
     '(keydown)': 'key($event)',
     '(blur)': 'hover.set(null)',
+    '(document:pointerdown)': 'outside($event)',
   },
   template: `
     @if (width() > 0) {
@@ -213,15 +221,17 @@ const PHONE = 520;
         [style.height.px]="plot().b - plot().t"
         (pointermove)="move($event)"
         (pointerdown)="move($event)"
-        (pointerleave)="hover.set(null)"
+        (pointerup)="hold.lift($event)"
+        (pointerleave)="hold.leave($event)"
+        (pointercancel)="hold.cancel()"
       ></div>
 
       @if (cursor(); as c) {
         <div
           class="pointer-events-none absolute z-10 w-44 rounded-xl border border-line bg-raised/95 p-3 text-xs shadow-2xl backdrop-blur"
-          [style.left.px]="c.flip ? c.x - 14 : c.x + 14"
-          [style.top.px]="plot().t + 6"
-          [style.transform]="c.flip ? 'translateX(-100%)' : null"
+          [style.left.px]="c.tip.left"
+          [style.top.px]="c.tip.top"
+          [style.bottom.px]="c.tip.bottom"
         >
           <p class="mb-2 font-medium text-ink">{{ c.title }}</p>
           @if (showVisitors()) {
@@ -267,6 +277,9 @@ export class AreaChart {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   protected readonly width = hostWidth();
   protected readonly hover = signal<number | null>(null);
+  /** Where the finger is (px from the chart's top) while a touch readout is up; null for mouse and keys. */
+  private readonly touchY = signal<number | null>(null);
+  protected readonly hold = touchHold(() => this.hover.set(null));
 
   constructor() {
     // New data for a new site or period: run the draw-in again on the elements that are already there.
@@ -385,6 +398,7 @@ export class AreaChart {
     const x = this.xs()[i];
     const y = this.y();
     const before = this.previous()[i];
+    const comparison = this.showPrevious() && before;
     return {
       x,
       yVisitors: y(point.visitors),
@@ -400,9 +414,27 @@ export class AreaChart {
             pageviews: before.pageviews,
           }
         : null,
-      flip: x > this.width() * 0.58,
+      tip: this.tipBox(x, this.touchY(), comparison ? 1 : 0),
     };
   });
+
+  /**
+   * Where the tooltip goes. A mouse gets it beside the crosshair, on whichever side has room.
+   * A finger gets it floating above the touch point, centred on the crosshair; if there is
+   * no room above it moves well to the side. Always clamped inside the chart.
+   */
+  private tipBox(x: number, touchY: number | null, comparison: number) {
+    const width = this.width();
+    const series = Number(this.showVisitors()) + Number(this.showPageviews());
+    const estHeight = 48 + 16 * series + 4 * Math.max(0, series - 1) + 49 * comparison;
+    const clamp = (left: number) => Math.max(0, Math.min(left, width - TIP_W));
+    if (touchY !== null && touchY - FINGER - estHeight >= 0) {
+      return { left: clamp(x - TIP_W / 2), top: null, bottom: this.height() - (touchY - FINGER) };
+    }
+    const gap = touchY === null ? TIP_GAP : TIP_GAP_TOUCH;
+    const right = x + gap + TIP_W <= width;
+    return { left: clamp(right ? x + gap : x - gap - TIP_W), top: this.plot().t + 6, bottom: null };
+  }
 
   protected readonly summary = computed(() => {
     const points = this.points();
@@ -424,7 +456,16 @@ export class AreaChart {
     const n = this.points().length;
     if (n === 0) return;
     const { l, r } = this.plot();
+    this.hold.keep();
+    this.touchY.set(
+      event.pointerType === 'mouse' ? null : event.clientY - rect.top + this.plot().t,
+    );
     this.hover.set(nearestIndex(event.clientX - rect.left + l, l, r, n));
+  }
+
+  /** A touch readout stays after the finger lifts; tapping anywhere else puts it away. */
+  protected outside(event: PointerEvent): void {
+    if (this.hover() !== null && !this.host.contains(event.target as Node)) this.hold.cancel();
   }
 
   protected key(event: KeyboardEvent): void {
@@ -440,6 +481,8 @@ export class AreaChart {
     if (event.key === 'Escape') this.hover.set(null);
     else if (event.key in moves) {
       event.preventDefault();
+      this.hold.keep();
+      this.touchY.set(null);
       this.hover.set(moves[event.key]);
     }
   }

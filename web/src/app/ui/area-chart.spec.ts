@@ -73,6 +73,87 @@ describe('AreaChart', () => {
     expect(el.textContent).not.toContain('Before:');
   });
 
+  describe('pointer readout', () => {
+    const fire = (el: Element, type: string, pointerType: string, clientX: number, clientY = 100) =>
+      el.dispatchEvent(
+        Object.assign(new Event(type, { bubbles: true }), { pointerType, clientX, clientY }),
+      );
+    const setup = async () => {
+      const fixture = await render(points);
+      vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+        width: 640,
+        height: 320,
+        left: 0,
+        top: 0,
+      } as DOMRect);
+      const el = fixture.nativeElement as HTMLElement;
+      const surface = el.querySelector<HTMLElement>('div.absolute')!;
+      const tooltip = () => el.querySelector<HTMLElement>('.z-10');
+      const settle = async () => {
+        await fixture.whenStable();
+        fixture.detectChanges();
+      };
+      return { el, surface, tooltip, settle };
+    };
+
+    it('follows a mouse and goes when it leaves', async () => {
+      const { surface, tooltip, settle } = await setup();
+      fire(surface, 'pointermove', 'mouse', 300);
+      await settle();
+      expect(tooltip()).not.toBeNull();
+      fire(surface, 'pointerleave', 'mouse', 300);
+      await settle();
+      expect(tooltip()).toBeNull();
+    });
+
+    it('keeps a finger readout after the finger lifts, until a tap elsewhere', async () => {
+      const { surface, tooltip, settle } = await setup();
+      fire(surface, 'pointerdown', 'touch', 300);
+      fire(surface, 'pointerup', 'touch', 300);
+      fire(surface, 'pointerleave', 'touch', 300);
+      await settle();
+      expect(tooltip()).not.toBeNull();
+      document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      await settle();
+      expect(tooltip()).toBeNull();
+    });
+
+    it('drops the readout when a touch turns into a scroll', async () => {
+      const { surface, tooltip, settle } = await setup();
+      fire(surface, 'pointerdown', 'touch', 300);
+      fire(surface, 'pointercancel', 'touch', 300);
+      await settle();
+      expect(tooltip()).toBeNull();
+    });
+
+    it('never lets the tooltip leave the chart', async () => {
+      const { surface, tooltip, settle } = await setup();
+      for (const [type, x] of [
+        ['mouse', 20],
+        ['mouse', 620],
+        ['touch', 20],
+        ['touch', 620],
+      ] as const) {
+        fire(surface, 'pointermove', type, x, 30);
+        await settle();
+        const left = parseFloat(tooltip()!.style.left);
+        expect(left, `${type} ${x}`).toBeGreaterThanOrEqual(0);
+        expect(left + 176, `${type} ${x}`).toBeLessThanOrEqual(640);
+      }
+    });
+
+    it('floats above a finger when there is room, beside it when there is not', async () => {
+      const { surface, tooltip, settle } = await setup();
+      fire(surface, 'pointermove', 'touch', 300, 280);
+      await settle();
+      expect(tooltip()!.style.bottom).not.toBe('');
+      fire(surface, 'pointermove', 'touch', 300, 20);
+      await settle();
+      expect(tooltip()!.style.bottom).toBe('');
+      expect(tooltip()!.style.top).not.toBe('');
+    });
+  });
+
   it('says so when nothing was recorded', async () => {
     const el = (await render([day(8, 0, 0), day(9, 0, 0)])).nativeElement as HTMLElement;
     expect(el.textContent).toContain('No visits in this period yet');
