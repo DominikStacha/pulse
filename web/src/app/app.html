@@ -4,14 +4,17 @@
   >Skip to content</a
 >
 
-<div class="min-h-dvh lg:grid lg:grid-cols-[15.5rem_minmax(0,1fr)]">
+<!-- lg to xl: an icon-only rail (labels become tooltips); from xl the full rail. -->
+<div
+  class="min-h-dvh lg:grid lg:grid-cols-[4.5rem_minmax(0,1fr)] xl:grid-cols-[14rem_minmax(0,1fr)]"
+>
   <aside
-    class="vt-rail sticky top-0 hidden h-dvh flex-col border-r border-line/60 bg-bg/40 px-4 py-6 backdrop-blur-sm lg:flex"
+    class="vt-rail sticky top-0 z-30 hidden h-dvh flex-col border-r border-line/60 bg-bg/40 px-[var(--rail-px)] py-6 [--rail-px:0.75rem] backdrop-blur-sm lg:flex xl:[--rail-px:1rem]"
   >
     <a
       routerLink="/"
       queryParamsHandling="preserve"
-      class="mb-9 flex items-center gap-3 rounded-lg px-2 py-1"
+      class="mb-9 flex items-center gap-3 rounded-lg px-2 py-1 lg:justify-center xl:justify-start"
       aria-label="Pulse, overview"
     >
       <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true">
@@ -32,7 +35,7 @@
           "
         />
       </svg>
-      <span class="display text-[23px] font-semibold">pulse</span>
+      <span class="display text-[23px] font-semibold lg:sr-only xl:not-sr-only">pulse</span>
     </a>
 
     <nav aria-label="Main" class="flex flex-col gap-1">
@@ -43,26 +46,37 @@
           routerLinkActive="is-active"
           ariaCurrentWhenActive="page"
           [routerLinkActiveOptions]="{ exact: true }"
-          class="nav-link group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-medium text-sub transition-colors hover:bg-white/[0.04] hover:text-ink"
+          class="nav-link group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-[14px] font-medium text-sub transition-colors hover:bg-white/[0.04] hover:text-ink lg:justify-center xl:justify-start"
         >
           <pl-icon [name]="item.icon" [size]="19" />
-          {{ item.label }}
+          <span class="lg:sr-only xl:not-sr-only">{{ item.label }}</span>
           @if (item.path === '/live' && live.active() !== null) {
-            <span class="num ml-auto flex items-center gap-1.5 text-xs text-mint"
-              ><i class="size-1.5 rounded-full bg-mint"></i>{{ live.active() }}</span
+            <span
+              class="num flex items-center gap-1.5 text-xs text-mint lg:absolute lg:right-2 lg:top-1.5 xl:static xl:ml-auto"
+              ><i class="size-1.5 rounded-full bg-mint"></i
+              ><span class="lg:sr-only xl:not-sr-only">{{ live.active() }}</span></span
             >
           }
+          <!-- Icon-only rail: the label shows beside the icon on hover and keyboard focus. -->
+          <span
+            aria-hidden="true"
+            class="pointer-events-none absolute left-full top-1/2 z-50 ml-3 hidden -translate-y-1/2 whitespace-nowrap rounded-lg border border-line bg-raised px-2.5 py-1.5 text-xs text-ink opacity-0 shadow-xl transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 lg:block xl:hidden"
+            >{{ item.label }}</span
+          >
         </a>
       }
     </nav>
 
-    <p class="mt-auto px-2 text-xs leading-relaxed text-faint">
-      Cookieless. No IP addresses stored.<br />Your sites, your Pi.
+    <p class="mt-auto hidden text-balance px-2 text-xs leading-relaxed text-faint xl:block">
+      Cookieless, with no IP addresses stored. Your sites, your Pi.
     </p>
   </aside>
 
-  <main id="main" class="min-w-0 px-4 pb-28 pt-6 sm:px-6 lg:px-10 lg:pb-16 lg:pt-10">
-    <div class="mx-auto max-w-[1360px]">
+  <main
+    id="main"
+    class="min-w-0 pb-28 pt-6 pl-[max(var(--gutter),env(safe-area-inset-left))] pr-[max(var(--gutter),env(safe-area-inset-right))] [--gutter:1rem] sm:[--gutter:1.5rem] lg:pb-16 lg:pt-10 lg:[--gutter:2.5rem] short:pb-20 short:pt-4"
+  >
+    <div class="mx-auto max-w-[1360px] min-[1900px]:max-w-[1600px] min-[2400px]:max-w-[1840px]">
       <router-outlet />
     </div>
   </main>
@@ -70,9 +84,9 @@
 
 <nav
   aria-label="Main"
-  class="vt-bar fixed inset-x-0 bottom-0 z-40 border-t border-line/70 bg-bg/80 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden"
+  class="vt-bar fixed inset-x-0 bottom-0 z-40 border-t border-line/70 bg-bg/80 pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] backdrop-blur-xl lg:hidden"
 >
-  <ul class="mx-auto grid max-w-md grid-cols-4">
+  <ul class="mx-auto grid max-w-md grid-cols-4 short:max-w-xl">
     @for (item of nav; track item.path) {
       <li>
         <a
@@ -81,7 +95,7 @@
           routerLinkActive="is-active"
           ariaCurrentWhenActive="page"
           [routerLinkActiveOptions]="{ exact: true }"
-          class="nav-link flex flex-col items-center gap-1 py-2.5 text-[11.5px] font-medium text-faint transition-colors"
+          class="nav-link flex flex-col items-center gap-1 py-2.5 text-[11.5px] font-medium text-faint transition-colors short:min-h-11 short:flex-row short:justify-center short:gap-2 short:py-1.5"
         >
           <pl-icon [name]="item.icon" [size]="21" />
           {{ item.label }}
