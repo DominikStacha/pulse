@@ -508,8 +508,9 @@ export function breakdown(
   const sitesDim = dim === 'sites';
   const rows: Row[] = items
     .map(([key, w]) => {
+      // Sites are measured, not modelled: their distinct visitors add up to the total.
       const visitors = sitesDim
-        ? w
+        ? Math.round(w * UNIQUE[r.bucket])
         : Math.round(total.visitors * (w / weightSum) * (0.85 + 0.3 * random()));
       const perVisitor = dim === 'events' ? 1.4 : dim === 'pages' ? 1.5 : 1.1;
       return {
@@ -517,12 +518,17 @@ export function breakdown(
         label: labelFor(dim, key),
         visitors,
         count: Math.round(visitors * perVisitor * (0.9 + 0.3 * random())),
-        share: total.visitors ? Math.min(1, visitors / total.visitors) : 0,
+        share: 0,
       };
     })
-    .filter((row) => row.visitors > 0)
-    .sort((a, b) => b.visitors - a.visitors)
-    .slice(0, limit);
+    .filter((row) => row.visitors > 0);
+  // The sites panel's shares sum to 1; the other lists are shares of the period's total visitors.
+  const shareBase = sitesDim ? rows.reduce((a, row) => a + row.visitors, 0) : total.visitors;
+  for (const row of rows) row.share = shareBase ? Math.min(1, row.visitors / shareBase) : 0;
+  // The Events panel ranks by its displayed count; every other list ranks by visitors.
+  const by = dim === 'events' ? 'count' : 'visitors';
+  rows.sort((a, b) => b[by] - a[by]);
+  rows.length = Math.min(rows.length, limit);
 
   return { dim, totalVisitors: total.visitors, rows };
 }
