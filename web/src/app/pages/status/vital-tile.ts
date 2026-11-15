@@ -14,13 +14,12 @@ import { Sparkline } from '../../ui/sparkline';
     <div class="mt-3 flex items-center gap-4">
       @if (reading().fraction !== null) {
         <pl-gauge
-          class="size-[92px] shrink-0"
+          class="size-24 shrink-0"
           [fraction]="reading().fraction!"
           [severity]="reading().severity"
           [label]="reading().label"
-        >
-          <span class="display num text-[19px]">{{ reading().value }}</span>
-        </pl-gauge>
+          [value]="reading().value"
+        />
         <p class="min-w-0 text-[13px] leading-snug text-sub">{{ reading().detail }}</p>
       } @else {
         <div class="min-w-0">
@@ -49,6 +48,12 @@ import { Sparkline } from '../../ui/sparkline';
         [label]="reading().label + ' over the last 24 hours'"
       />
       <p class="mt-1.5 text-xs text-faint">Last 24 hours</p>
+    } @else if (reading().fraction !== null) {
+      <!-- Same footprint as the real trend, so the tile does not grow when history arrives. -->
+      <div class="mt-4 grid h-11 items-center" aria-hidden="true">
+        <div class="skeleton h-0.5 w-full rounded-full"></div>
+      </div>
+      <p class="mt-1.5 text-xs text-faint">Collecting history</p>
     }
   `,
 })
