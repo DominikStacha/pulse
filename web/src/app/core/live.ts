@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable, InjectionToken, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, InjectionToken, inject, signal } from '@angular/core';
 import { Live, LiveEvent } from './api';
 
 /** The slice of EventSource we use, so the dev mock can stand in for it. */
@@ -41,6 +41,8 @@ export class LiveService {
 
   private nextId = 1;
   private started = false;
+  private stream: LiveStream | null = null;
+  private readonly destroyRef = inject(DestroyRef);
   private retry = 0;
   private snapshotTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -52,8 +54,33 @@ export class LiveService {
   start(): void {
     if (this.started) return;
     this.started = true;
+    // A page left for another document can stay alive in the back/forward cache with its
+    // stream open, holding one of the browser's six HTTP/1.1 connections per host; after a
+    // few navigations every request queues. Close on pagehide, reopen if the page comes back.
+    const listeners = new AbortController();
+    this.destroyRef.onDestroy(() => {
+      listeners.abort();
+      this.disconnect();
+    });
+    addEventListener('pagehide', () => this.disconnect(), { signal: listeners.signal });
+    addEventListener(
+      'pageshow',
+      (e) => {
+        if ((e as PageTransitionEvent).persisted) {
+          this.loadSnapshot();
+          this.connect();
+        }
+      },
+      { signal: listeners.signal },
+    );
     this.loadSnapshot(true);
     this.connect();
+  }
+
+  private disconnect(): void {
+    this.stream?.close();
+    this.stream = null;
+    this.connected.set(false);
   }
 
   private loadSnapshot(replaceFeed = false): void {
@@ -72,7 +99,9 @@ export class LiveService {
   }
 
   private connect(): void {
+    this.stream?.close();
     const stream = this.open('/api/live/stream');
+    this.stream = stream;
     stream.addEventListener('open', () => {
       this.connected.set(true);
       this.retry = 0;
@@ -99,6 +128,7 @@ export class LiveService {
         stream.close();
         const delay = Math.min(30_000, 3000 * 2 ** this.retry++);
         setTimeout(() => {
+          if (this.stream !== stream) return; // disconnected (pagehide) or replaced meanwhile
           this.loadSnapshot();
           this.connect();
         }, delay);

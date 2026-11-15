@@ -125,4 +125,20 @@ describe('LiveService', () => {
     vi.advanceTimersByTime(60_000);
     expect(streams).toHaveLength(1);
   });
+
+  it('closes the stream on pagehide and reopens it when the page returns from the back/forward cache', () => {
+    live.start();
+    expect(streams).toHaveLength(1);
+
+    dispatchEvent(new Event('pagehide'));
+    expect(streams[0].closed).toBe(true);
+    expect(live.connected()).toBe(false);
+
+    const back = new Event('pageshow') as Event & { persisted: boolean };
+    Object.defineProperty(back, 'persisted', { value: true });
+    dispatchEvent(back);
+    expect(streams).toHaveLength(2);
+    expect(streams[1].closed).toBe(false);
+    http.match('/api/live').forEach((r) => r.flush(snapshot(0)));
+  });
 });
