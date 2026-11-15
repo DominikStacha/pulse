@@ -34,6 +34,8 @@ public class IconTests
             <link rel="icon" type="image/png" href="assets/images/logo.png">
             <link rel="apple-touch-icon" href="/assets/icons/icon-192.png">
             <link href="http://insecure.example/i.svg" rel="icon">
+            <link rel="icon" href="https://elsewhere.example/evil.png">
+            <link rel="icon" href="https://portal.example.cz.evil.com/x.png">
             <LINK REL="icon" TYPE="image/svg+xml" HREF="favicon.svg?v=2">
             """;
         Assert.Equal(
@@ -41,6 +43,27 @@ public class IconTests
              "https://portal.example.cz/assets/images/logo.png", "https://portal.example.cz/favicon.ico"],
             Icons.Candidates(html, page).Select(u => u.ToString()));
     }
+
+    [Theory]
+    [InlineData("127.0.0.1", false)]
+    [InlineData("10.1.2.3", false)]
+    [InlineData("172.16.0.1", false)]
+    [InlineData("172.31.255.255", false)]
+    [InlineData("192.168.0.5", false)]
+    [InlineData("169.254.169.254", false)]
+    [InlineData("100.64.0.1", false)]
+    [InlineData("0.0.0.0", false)]
+    [InlineData("224.0.0.1", false)]
+    [InlineData("::1", false)]
+    [InlineData("::", false)]
+    [InlineData("fe80::1", false)]
+    [InlineData("fd00::1", false)]
+    [InlineData("::ffff:192.168.1.1", false)]
+    [InlineData("172.32.0.1", true)]
+    [InlineData("104.21.5.9", true)]
+    [InlineData("2606:4700::6810:84e5", true)]
+    public void Only_public_addresses_may_be_fetched(string ip, bool expected) =>
+        Assert.Equal(expected, Icons.IsPublic(System.Net.IPAddress.Parse(ip)));
 
     static (PulseFactory f, HttpClient c, FakeWeb web) Start()
     {

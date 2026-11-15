@@ -1,4 +1,6 @@
 using System.Collections.Concurrent;
+using System.Net;
+using System.Net.Sockets;
 using System.Text.RegularExpressions;
 using Dapper;
 
@@ -21,7 +23,42 @@ public static partial class Icons
     [GeneratedRegex("""\b(rel|href|type)\s*=\s*["']([^"']*)["']""", RegexOptions.IgnoreCase)]
     private static partial Regex Attr();
 
-    /// <summary>Icon candidates from a homepage, best first. Exposed for tests.</summary>
+    /// <summary>
+    /// HTTP handler for icon fetches: every connection (redirect hops included) goes only to a public address,
+    /// checked after DNS resolution, so a site's HTML or a redirect can't point the server at the Pi's own network.
+    /// </summary>
+    public static SocketsHttpHandler Handler() => new()
+    {
+        MaxAutomaticRedirections = 3,
+        ConnectCallback = async (ctx, ct) =>
+        {
+            var addresses = await Dns.GetHostAddressesAsync(ctx.DnsEndPoint.Host, ct);
+            if (addresses.Length == 0 || !addresses.All(IsPublic)) throw new HttpRequestException("icon host is not public");
+            var socket = new Socket(addresses[0].AddressFamily, SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+            try { await socket.ConnectAsync(addresses[0], ctx.DnsEndPoint.Port, ct); return new NetworkStream(socket, ownsSocket: true); }
+            catch { socket.Dispose(); throw; }
+        },
+    };
+
+    /// <summary>False for loopback, private, link-local, CGNAT, multicast, reserved and unspecified addresses.</summary>
+    public static bool IsPublic(IPAddress ip)
+    {
+        if (ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();
+        if (IPAddress.IsLoopback(ip) || ip.Equals(IPAddress.Any) || ip.Equals(IPAddress.IPv6Any) || ip.Equals(IPAddress.Broadcast)) return false;
+        if (ip.AddressFamily == AddressFamily.InterNetwork)
+        {
+            var b = ip.GetAddressBytes();
+            return !(b[0] == 0 || b[0] == 10 || b[0] == 127 || b[0] >= 224
+                || (b[0] == 172 && b[1] >= 16 && b[1] <= 31)
+                || (b[0] == 192 && b[1] == 168)
+                || (b[0] == 169 && b[1] == 254)
+                || (b[0] == 100 && b[1] >= 64 && b[1] <= 127));
+        }
+        var v6 = ip.GetAddressBytes();
+        return !(ip.IsIPv6LinkLocal || ip.IsIPv6SiteLocal || ip.IsIPv6Multicast || (v6[0] & 0xFE) == 0xFC); // fc00::/7 ULA
+    }
+
+    /// <summary>Icon candidates from a homepage, best first, only on the site's own host or its subdomains. Exposed for tests.</summary>
     public static List<Uri> Candidates(string html, Uri page)
     {
         var found = new List<(int rank, Uri uri)>();
@@ -30,6 +67,7 @@ public static partial class Icons
             var a = Attr().Matches(tag.Value).ToDictionary(m => m.Groups[1].Value.ToLowerInvariant(), m => m.Groups[2].Value);
             if (!a.TryGetValue("rel", out var rel) || !rel.Contains("icon", StringComparison.OrdinalIgnoreCase)) continue;
             if (!a.TryGetValue("href", out var href) || !Uri.TryCreate(page, href.Trim(), out var uri) || uri.Scheme != Uri.UriSchemeHttps) continue;
+            if (uri.Host != page.Host && !uri.Host.EndsWith("." + page.Host, StringComparison.OrdinalIgnoreCase)) continue; // own site only
             var rank = a.GetValueOrDefault("type", "").Contains("svg", StringComparison.OrdinalIgnoreCase) || uri.AbsolutePath.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) ? 0
                 : rel.Contains("apple-touch-icon", StringComparison.OrdinalIgnoreCase) ? 1 : 2;
             found.Add((rank, uri));

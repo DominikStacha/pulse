@@ -30,7 +30,7 @@ builder.Services.AddHttpClient("icons", c =>
 {
     c.Timeout = TimeSpan.FromSeconds(5);
     c.DefaultRequestHeaders.UserAgent.ParseAdd("Pulse-icons/1.0");
-}).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { MaxAutomaticRedirections = 3 });
+}).ConfigurePrimaryHttpMessageHandler(Icons.Handler);
 builder.Services.AddHostedService<Retention>();
 builder.Services.AddRateLimiter(o =>
 {
