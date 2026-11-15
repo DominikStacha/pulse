@@ -26,6 +26,11 @@ builder.Services.AddSingleton<LiveHub>();
 builder.Services.AddSingleton<Events>();
 builder.Services.AddSingleton<Access>();
 builder.Services.AddHttpClient("jwks", c => c.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddHttpClient("icons", c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(5);
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("Pulse-icons/1.0");
+}).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { MaxAutomaticRedirections = 3 });
 builder.Services.AddHostedService<Retention>();
 builder.Services.AddRateLimiter(o =>
 {
@@ -63,7 +68,7 @@ if (demo)
 app.Use(async (ctx, next) =>
 {
     var h = ctx.Response.Headers;
-    h.ContentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data:; " +
+    h.ContentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; " +
                               "font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'";
     h.XContentTypeOptions = "nosniff";
     h["Referrer-Policy"] = "no-referrer";
@@ -113,6 +118,7 @@ app.MapIngest();
 
 var api = app.MapGroup("/api");
 api.MapDashboard();
+api.MapIcons();
 api.MapLive();
 
 // Pi health snapshots written by the collector (status.json, history.json), passed through verbatim.
