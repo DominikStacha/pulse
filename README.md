@@ -92,3 +92,7 @@ dotnet test                              # backend
 
 The production image (`Dockerfile`) builds the dashboard, publishes the API and copies the tracker:
 `docker buildx build --platform linux/arm64 -t pulse:latest .`
+
+## License
+
+[MIT](LICENSE)
